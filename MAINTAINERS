@@ -1,0 +1,40 @@
+List of maintainers and how to submit changes
+=============================================
+
+This is an early public release of the XenServer Windows XenGuestAgent.
+
+At the moment we are working hard on improving this early release, to make
+it easier to build and install and test on your own systems.  As such things 
+are in a state of flux, and we may well find it difficult to take submissions.
+
+We hope things will have improved by January 2014
+
+If you do wish to submit code, we recommend reaching out to the maintainers
+first, who will attempt to steer you in the right direction.
+
+We also request you follow these guidelines:
+
+1.  All submissions must be made under the terms of the "Developer's Certificate
+    of Origin" (DC) and should include a Signed-off-by: line.
+
+2.  All Submissions should use Unix line endings for consitency with the rest of
+    the XenServer project
+
+3.  Each patch should include a descriptive commit comment that helps understand
+    why the patch is necessary and why it works. This will be used both for
+    initial review and for new people to understand how the code works later
+
+4.  Make sure you have the right to submit any changes you make. If you do 
+    changes at work you may find your employer owns the patches instead of 
+    you.
+
+
+Maintainers List
+----------------
+
+* Ben Chalmers <ben.chalmers@citrix.com>
+
+* Paul Durrant <paul.durrant@citrix.com>
+
+* Owen Smith <owen.smith@citrix.com>
+
