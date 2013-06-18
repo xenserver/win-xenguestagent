@@ -34,7 +34,7 @@ Commands to build
 
     git clone http://github.com/xenserver/win-xenguestagent
     cd win-xenguestagent
-    .\\build.py [checked | free]
+    .\build.py [checked | free]
 
 Runtime Dependencies
 --------------------
