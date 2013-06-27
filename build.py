@@ -36,6 +36,7 @@ import datetime
 import glob
 import shutil
 import tarfile
+import subprocess
 
 def make_header():
     now = datetime.datetime.now()
@@ -84,10 +85,32 @@ def msbuild(name, debug = False):
     status=shell('msbuild.bat')
     os.chdir(cwd)
 
-def archive(name):
-    tar = tarfile.open(name+'.tar','w')
-    tar.add(name)
+def callfnout(cmd):
+    print(cmd)
+    print(os.environ['Path'])
+
+    sub = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    output = sub.communicate()[0]
+    ret = sub.returncode
+
+    if ret != 0:
+        raise(Exception("Error %d in : %s" % (ret, cmd)))
+    print("------------------------------------------------------------")
+    return output.decode('utf-8')
+
+def archive(filename, files, tgz=False):
+    access='w'
+    if tgz:
+        access='w:gz'
+    tar = tarfile.open(filename, access)
+    for name in files :
+        try:
+            print('adding '+name)
+            tar.add(name)
+        except:
+            pass
     tar.close()
+
 
 def copyfiles(name, subproj, debug=False):
 
@@ -128,4 +151,7 @@ if __name__ == '__main__':
     msbuild('xenguestagent', debug[sys.argv[1]])
     copyfiles('xenguestagent','xenguestagent', debug[sys.argv[1]])
     copyfiles('xenguestagent','xendpriv', debug[sys.argv[1]])
-    archive('xenguestagent')
+
+    listfile = callfnout(['git','ls-files'])
+    archive('xenguestagent\\source.tgz', listfile.splitlines(), tgz=True)
+    archive('xenguestagent.tar', ['xenguestagent','revision'])
