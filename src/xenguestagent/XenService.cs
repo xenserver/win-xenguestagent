@@ -244,6 +244,8 @@ namespace xenwinsvc
                 new FeatureShutdown(this);
                 new FeaturePing(this);
                 new FeatureDomainJoin(this);
+                new FeatureSetComputerName(this);
+
                 wmisession.Log("About to try snapshot");
                 if (FeatureSnapshot.IsSnapshotSupported())
                 {

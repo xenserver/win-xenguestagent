@@ -63,7 +63,44 @@ namespace xenwinsvc
             return isWOW64();
         }
 
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
+           [Out] StringBuilder lpBuffer, ref uint lpnSize);
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static public extern bool SetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
+            string lpBuffer);
+        public enum COMPUTER_NAME_FORMAT
+        {
+            ComputerNameNetBIOS,
+            ComputerNameDnsHostname,
+            ComputerNameDnsDomain,
+            ComputerNameDnsFullyQualified,
+            ComputerNamePhysicalNetBIOS,
+            ComputerNamePhysicalDnsHostname,
+            ComputerNamePhysicalDnsDomain,
+            ComputerNamePhysicalDnsFullyQualified,
+        }
+        static public string GetComputerDnsHostname()
+        {
+            uint size=0;
+            StringBuilder hostname = null;
 
+            while (!GetComputerNameEx(COMPUTER_NAME_FORMAT.ComputerNamePhysicalDnsHostname, hostname, ref size))
+            {
+                int err = Marshal.GetLastWin32Error();
+                if ((err == ERROR_INSUFFICIENT_BUFFER) || (err == ERROR_MORE_DATA))
+                {
+                    size += 1;
+                    hostname = new StringBuilder((int)size);
+                }
+                else
+                {
+                    throw new Exception("Unable to get computer name : " + err.ToString());
+                }
+            }
+
+            return hostname.ToString();
+        }
 
 
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]

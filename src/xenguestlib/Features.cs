@@ -35,6 +35,7 @@ using System.Management;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace xenwinsvc
 {
@@ -241,6 +242,158 @@ namespace xenwinsvc
         }
     }
 
+    // To use SetComputername Feature
+    //
+    // (all keys are relative to /domain/local/xxx/control/setcomputername/)
+    //
+    // Take a transaction
+    // Check that feature-setcomputername exists else, drop transation
+    // if state is set, or action is set, drop transaction,
+    //   wait, then try again
+    // if you want to set a computer name other than the xapi name for the domain, 
+    //   set computername to the desited name (otherwise the xapi name for the
+    //   domain will be used as a default) 
+    // set action to "set"
+    // commit the transaction
+    // read the value of state, it should read either
+    //   InProgress
+    //   NoChange
+    //   SucceededNeedsReboot
+    //   Failed
+    // while state reads InProgress, wait and reread the value of state 
+    //   until it reads either Failed or Succeded
+    // once the action has completed, the action key will be removed
+    // in the event state reads Failed, error will contain some info
+    //   which may be usable
+    // if state reads NoChange, the VM was already set to the desired name
+    // if the state reads SucceededNeedsReboot, the rename succeded, and the
+    //   VM must be rebooted for the change to take effect
+    // you should remove the state entry if finished and not rebooting to allow
+    //   other applications the opportunity to change the computer name.
+
+    public class FeatureSetComputerName : Feature
+    {
+        XenStoreItem name;
+        XenStoreItem state;
+        XenStoreItem error;
+
+        public FeatureSetComputerName(IExceptionHandler exceptionhandler)
+            : base("Set Computer Name", "control/feature-setcomputername", "control/setcomputername/action", true, exceptionhandler)
+        {
+            name =  wmisession.GetXenStoreItem("control/setcomputername/name");
+            state =  wmisession.GetXenStoreItem("control/setcomputername/state");
+            error = wmisession.GetXenStoreItem("control/setcomputername/error");
+        }
+        
+        void SetComputerName() {
+
+            wmisession.Log("Set Computer Name Requested");
+            state.value = "InProgress";
+            String defaultname;
+            bool res;
+
+            try {
+                defaultname = name.value;
+                name.Remove();
+            }
+            catch {
+                try {
+                    wmisession.Log("Setting computer name to default");
+                    XenStoreItem name = wmisession.GetXenStoreItem("name");
+                    defaultname = name.value;
+                    
+                }
+                catch (Exception e){
+                    wmisession.Log("Unable to read default name for domain from xenstore: "+ e.ToString());
+                    error.value = "Can't read default computer name";
+                    state.value = "Failed";
+                    return;
+                }
+            }
+
+            if (defaultname.Equals("")) {
+                wmisession.Log("Can't set to empty computer name");
+                error.value = "Computer name empty";
+                state.value = "Failed";
+                return;
+            }
+
+            try
+            {
+                wmisession.Log("Setting computer name to "+defaultname);
+                Win32Impl.SetLastError(0);
+                res = Win32Impl.SetComputerNameEx(Win32Impl.COMPUTER_NAME_FORMAT.ComputerNamePhysicalDnsHostname, defaultname);
+                if (!res) {
+                    wmisession.Log("Setting computer name failed " + Marshal.GetLastWin32Error().ToString());
+                    error.value = "Setting name failed (error code "+Marshal.GetLastWin32Error().ToString()+")";
+                    state.value = "Failed";
+                    return;
+                }
+                wmisession.Log("Setting computer name succceded");
+            }
+            catch(Exception e)
+            {
+                wmisession.Log("Exception setting computer name : " + e.ToString());
+                error.value = "Exception calling set computer name";
+                state.value = "Failed";
+                return;
+            }
+            try
+            {
+                wmisession.Log("Target hostname " + defaultname);
+                wmisession.Log("Current hostname" + Win32Impl.GetComputerDnsHostname());
+                if (defaultname.Equals(Win32Impl.GetComputerDnsHostname()))
+                {
+                    wmisession.Log("No need to reboot to change computer name, already " + defaultname);
+                    state.value = "NoChange";
+                    return;
+                }
+            }
+            catch{
+            }
+            state.value = "SucceededNeedsReboot";
+        }
+
+
+        override protected void onFeature()
+        {
+            if (controlKey.Exists() && !state.Exists()) {
+                try {
+                    if (error.Exists()) {
+                        error.Remove();
+                    }
+
+                    if (state.Exists())
+                    {
+                        error.value = "Setting name already in progress";
+                        state.value = "Failed";
+                        return;
+                    }
+                    if (controlKey.value.Equals("set")) {
+                        SetComputerName();
+                    }
+                    else {
+                        error.value = "Unknown action : " + controlKey.value;
+                        state.value = "Failed";
+                    }
+                }
+                catch (Exception e) {
+                    if (!error.Exists()) {
+                        error.value=e.ToString();
+                    }
+                    state.value="Failed";
+                }
+                finally {
+                    // We always want to remove the controlKey, so that
+                    // it can be set again
+                    controlKey.Remove();
+                }
+            }
+        }
+    }
+
+
+
     // To use DomainJoin Feature
     //
     // (all keys are relative to /domain/local/xxx/domainjoin/)
@@ -271,75 +424,91 @@ namespace xenwinsvc
         XenStoreItem password;
         XenStoreItem state;
         XenStoreItem error;
-        
-        public FeatureDomainJoin(IExceptionHandler exceptionhandler) : base("Domain Join", "", "control/domainjoin/action", true, exceptionhandler) {
-            domainName =  wmisession.GetXenStoreItem("control/domainjoin/domainname");
-            userName =  wmisession.GetXenStoreItem("control/domainjoin/user");
-            password =  wmisession.GetXenStoreItem("control/domainjoin/password");
-            state =  wmisession.GetXenStoreItem("control/domainjoin/state");
+
+        public FeatureDomainJoin(IExceptionHandler exceptionhandler)
+            : base("Domain Join", "", "control/domainjoin/action", true, exceptionhandler)
+        {
+            domainName = wmisession.GetXenStoreItem("control/domainjoin/domainname");
+            userName = wmisession.GetXenStoreItem("control/domainjoin/user");
+            password = wmisession.GetXenStoreItem("control/domainjoin/password");
+            state = wmisession.GetXenStoreItem("control/domainjoin/state");
             error = wmisession.GetXenStoreItem("control/domainjoin/error");
         }
 
-        void JoinDomain() {
+        void JoinDomain()
+        {
             state.value = "InProgress";
             ManagementObject cs = WmiBase.Singleton.Win32_ComputerSystem;
             ManagementBaseObject mb = cs.GetMethodParameters("JoinDomainOrWorkgroup");
             mb["Name"] = domainName.value;
             mb["Password"] = password.value;
-            mb["UserName"] = domainName.value+"\\"+userName.value;
+            mb["UserName"] = domainName.value + "\\" + userName.value;
             mb["AccountOU"] = null;
             mb["FJoinOptions"] = (UInt32)1;
             ManagementBaseObject outParam = cs.InvokeMethod("JoinDomainOrWorkgroup", mb, null);
-            if ((UInt32)outParam["returnValue"] == 0) {
-                state.value="Succeeded";
+            if ((UInt32)outParam["returnValue"] == 0)
+            {
+                state.value = "Succeeded";
             }
-            else {
-                error.value=""+(UInt32)outParam["returnValue"];
-                state.value="Failed";
+            else
+            {
+                error.value = "" + (UInt32)outParam["returnValue"];
+                state.value = "Failed";
             }
         }
 
-        void UnjoinDomain() {
-             state.value = "InProgress";
-             ManagementObject cs = WmiBase.Singleton.Win32_ComputerSystem;
-             ManagementBaseObject mb = cs.GetMethodParameters("UnjoinDomainOrWorkgroup");
-             mb["Password"] = password.value;
-             mb["UserName"] = domainName.value+"\\"+userName.value;
-             mb["FUnjoinOptions"] = (UInt32)0;
-             ManagementBaseObject outParam = cs.InvokeMethod("UnjoinDomainOrWorkgroup", mb, null);
-             if ((UInt32)outParam["returnValue"] == 0) {
-                 state.value="Succeeded";
-             }
-             else {
-                 error.value=""+(UInt32)outParam["returnValue"];
-                 state.value="Failed";
-             }
+        void UnjoinDomain()
+        {
+            state.value = "InProgress";
+            ManagementObject cs = WmiBase.Singleton.Win32_ComputerSystem;
+            ManagementBaseObject mb = cs.GetMethodParameters("UnjoinDomainOrWorkgroup");
+            mb["Password"] = password.value;
+            mb["UserName"] = domainName.value + "\\" + userName.value;
+            mb["FUnjoinOptions"] = (UInt32)0;
+            ManagementBaseObject outParam = cs.InvokeMethod("UnjoinDomainOrWorkgroup", mb, null);
+            if ((UInt32)outParam["returnValue"] == 0)
+            {
+                state.value = "Succeeded";
+            }
+            else
+            {
+                error.value = "" + (UInt32)outParam["returnValue"];
+                state.value = "Failed";
+            }
         }
 
 
         override protected void onFeature()
         {
-            if (controlKey.Exists() && !state.Exists()) {
-                try {
-                    if (error.Exists()) {
+            if (controlKey.Exists() && !state.Exists())
+            {
+                try
+                {
+                    if (error.Exists())
+                    {
                         error.Remove();
                     }
-                    if (!domainName.Exists()) {
+                    if (!domainName.Exists())
+                    {
                         error.value = "domainname must be specified";
                         throw new Exception("domainname must be specified");
                     }
-                    if (!userName.Exists()) {
+                    if (!userName.Exists())
+                    {
                         error.value = "username must be specified";
                         throw new Exception("username must be specified");
                     }
-                    if (!password.Exists()) {
+                    if (!password.Exists())
+                    {
                         error.value = "password must be specified";
                         throw new Exception("password must be specified");
                     }
-                    if (controlKey.value.Equals("joindomain")) {
+                    if (controlKey.value.Equals("joindomain"))
+                    {
                         JoinDomain();
                     }
-                    else if (controlKey.value.Equals("unjoindomain")) {
+                    else if (controlKey.value.Equals("unjoindomain"))
+                    {
                         UnjoinDomain();
                     }
                     // If completed, remove the arguments, to avoid
@@ -348,13 +517,16 @@ namespace xenwinsvc
                     userName.Remove();
                     password.Remove();
                 }
-                catch (Exception e) {
-                    if (!error.Exists()) {
-                        error.value=e.ToString();
+                catch (Exception e)
+                {
+                    if (!error.Exists())
+                    {
+                        error.value = e.ToString();
                     }
-                    state.value="Failed";
+                    state.value = "Failed";
                 }
-                finally {
+                finally
+                {
                     // We always want to remove the controlKey, so that
                     // it can be set again
                     controlKey.Remove();
@@ -362,7 +534,6 @@ namespace xenwinsvc
             }
         }
     }
-
     public class FeatureTerminalServicesReset : Feature {
         XenStoreItem datats;
         public FeatureTerminalServicesReset(IExceptionHandler exceptionhandler)
