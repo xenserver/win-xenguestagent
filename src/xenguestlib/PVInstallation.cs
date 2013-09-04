@@ -41,6 +41,7 @@ namespace xenwinsvc
     {
         XenStoreItem osname;
         XenStoreItem hostname;
+        XenStoreItem hostnamedns;
         XenStoreItem domain;
 
 
@@ -225,6 +226,7 @@ namespace xenwinsvc
 
             osname = wmisession.GetXenStoreItem("data/os_name");
             hostname = wmisession.GetXenStoreItem("data/host_name");
+            hostnamedns = wmisession.GetXenStoreItem("data/host_name_dns");
             domain = wmisession.GetXenStoreItem("data/domain");
 
             oslicense = wmisession.GetXenStoreItem("attr/os/license");
@@ -377,6 +379,7 @@ namespace xenwinsvc
         {
             osname.value = (string)WmiBase.Singleton.Win32_OperatingSystem["Name"];
             hostname.value = (string)WmiBase.Singleton.Win32_ComputerSystem["Name"];
+            hostnamedns.value = Win32Impl.GetComputerDnsHostname();
             domain.value = (string)WmiBase.Singleton.Win32_ComputerSystem["Domain"];
         }
 
