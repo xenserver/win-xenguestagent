@@ -93,40 +93,17 @@ namespace xenwinsvc
             cntr = 1;
         }
 
-        
-        void resetTime() {
-            // We need to use FromFileTime to read the xentime stamp into
-            // a DateTime object, .net tries to convert it to local
-            // time.  So We read it as UTC, then tell .net its already
-            // local.
-            long internalxentime = (long)WmiBase.Singleton.XenTime;
-            if (internalxentime == 0)
-            {
-                wmisession.Log("unable to reset clock to xentime");
-                return;
-            }
-            DateTime xentime = DateTime.SpecifyKind(
-                DateTime.FromFileTimeUtc(internalxentime),
-                System.DateTimeKind.Local);
-            wmisession.Log("Xentime = " + xentime.ToString());
-            // Then set the time, via the Win32 API
-            Win32Impl.SYSTEMTIME systime = new Win32Impl.SYSTEMTIME(xentime);
-            Win32Impl.SetSystemTime(ref systime);
-        }
-
         void handleUnsuspended(object nothing, EventArrivedEventArgs args)
         {
             try
             {
-                resetTime();
                 Refresher.RefreshAll(true);
             }
             catch (Exception e)
             {
-                HandleException("Resume from Suspend", e);
+                HandleException("Resume from suspend", e);
             }
-        }
-
+        }        
 
         void ServiceThreadHandler()
         {
@@ -229,7 +206,6 @@ namespace xenwinsvc
                 wmisession = WmiBase.Singleton.GetXenStoreSession("Features");
 
                 wmisession.Log("Guest Agent Starting");
-                resetTime();
                 Refresher.Add(new PVInstallation(this));
                
                 wmisession.Log("About to run apps");
@@ -241,7 +217,6 @@ namespace xenwinsvc
                 wmisession.Log("About to run features");
                 new FeatureDumpLog(this);
                 new FeatureGC(this);
-                new FeatureShutdown(this);
                 new FeaturePing(this);
                 new FeatureDomainJoin(this);
                 new FeatureSetComputerName(this);
