@@ -51,7 +51,11 @@ namespace xenwinsvc
         public ClipboardManager(IExceptionHandler exceptionhandler)
         {
             this.exceptionhandler = exceptionhandler;
+            WorkerProcess.AddToXDIgnoreApplicationList();
         }
+
+
+
         class ClipboardAccess : IDisposable
         {
 
@@ -278,6 +282,28 @@ namespace xenwinsvc
             SafeWaitHandle worker;
             ProcessWaitHandle workerWaiter;
             RegisteredWaitHandle registeredWorkerWaiter;
+
+            static public void AddToXDIgnoreApplicationList() {
+                // XenDesktop in 'seamless' mode waits until all console process terminate before
+                // ending a session.  Since XenDpriv runs forever, XD never ends a seamless session
+                //
+                // the solution is to ensure we are added to a registry entry at 
+                // HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Citrix\wfshell\TWI\LogoffCheckSysModules 
+
+                RegistryKey key = Registry.LocalMachine.CreateSubKey("SYSTEM\\CurrentControlSet\\Control\\Citrix\\wfshell\\TWI",RegistryKeyPermissionCheck.ReadWriteSubTree);
+                string value = (string) key.GetValue("LogoffCheckSysModules","");
+                if (string.IsNullOrEmpty(value)) {
+                    value = "XenDpriv.exe";
+                }
+                else {
+                    if (!value.Contains("XenDpriv.exe")) {
+                        value = value + ",XenDpriv.exe";
+                    }
+                }
+                key.SetValue("LogoffCheckSysModules", value);
+
+            }
+
             public WorkerProcess(ClipboardAccess clipboard, WmiSession wmisession, IExceptionHandler exceptionhandler, IWorkerProcessHandler wphandler, IntPtr consoletoken)
             {
                 this.clipboard = clipboard;
@@ -297,6 +323,7 @@ namespace xenwinsvc
                 }
                 try
                 {
+                    AddToXDIgnoreApplicationList();
                     string path = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "Install_Dir", "");
                     string fullpath = string.Format("{0}\\XenDpriv.exe", path);
                     string cmdline = string.Format("XenDpriv.exe {0}", comms.secret);
@@ -504,12 +531,7 @@ namespace xenwinsvc
                     }
                     else
                     {
-                        uint newsession = Win32Impl.WTSGetActiveConsoleSessionId();
-                        wmisession.Log("changed to session "+newsession.ToString());
-                        if (newsession != session)
-                        {
-                            restartWorker();
-                        }
+                        restartWorker();
                     }
                 }
             }
