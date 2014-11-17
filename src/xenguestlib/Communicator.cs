@@ -84,8 +84,8 @@ namespace XenGuestLib
         {
             this.bufferreadpos = 0;
             this.bufferstartreadpos = 0;
-            buffersize = 1024;
-            buffer = new byte[1024];
+            buffersize = 1024*1024;
+            buffer = new byte[buffersize];
             if (!Pipe.IsConnected) {
                 onFailure("Pipe is missing");
                 return;
@@ -400,8 +400,8 @@ namespace XenGuestLib
                 System.Security.AccessControl.AccessControlType.Allow));
 
             Pipe = new NamedPipeServerStream(PIPENAME,
-                PipeDirection.InOut, 1, PipeTransmissionMode.Message,
-                PipeOptions.Asynchronous, 512, 512, sec);
+                PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous, 1024*1024, 1024*1024, sec);
             SetPipe(Pipe);
             this.callbacks = callbacks;
             Pipe.BeginWaitForConnection(HandleConnected, this);
