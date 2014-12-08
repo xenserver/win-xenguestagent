@@ -91,22 +91,20 @@ namespace xenwinsvc
             return new WmiListener(ev);
         }
 
-        private ManagementObject win32TerminalServiceSetting = null;
         public ManagementObject Win32_TerminalServiceSetting
         {
             get
             {
-                if (win32TerminalServiceSetting == null)
+                ManagementObject win32TerminalServiceSetting = null;
+                string root = "root\\cimv2\\terminalservices";
+                if (Environment.OSVersion.Version.Major < 6)
                 {
-                    string root = "root\\cimv2\\terminalservices";
-                    if (Environment.OSVersion.Version.Major < 6)
-                    {
-                        root = "root\\cimv2";
-                    }
-                    ManagementClass mc = new ManagementClass(root, "Win32_TerminalServiceSetting", null);
-                    mc.Scope.Options.EnablePrivileges = true;
-                    win32TerminalServiceSetting = WmiBase.getFirst(mc.GetInstances());
+                    root = "root\\cimv2";
                 }
+                ManagementClass mc = new ManagementClass(root, "Win32_TerminalServiceSetting", null);
+                mc.Scope.Options.EnablePrivileges = true;
+                win32TerminalServiceSetting = WmiBase.getFirst(mc.GetInstances());
+
                 return win32TerminalServiceSetting;
             }
         }
