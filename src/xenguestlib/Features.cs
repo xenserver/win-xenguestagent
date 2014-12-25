@@ -594,6 +594,7 @@ namespace xenwinsvc
                 ManagementObject termserv = WmiBase.Singleton.Win32_TerminalServiceSetting;
                 ManagementBaseObject mb = termserv.GetMethodParameters("SetAllowTSConnections");
                 mb["AllowTSConnections"] = (uint)(enable ? 1 : 0);
+                mb["ModifyFirewallException"] = 1;
                 termserv.InvokeMethod("SetAllowTSConnections", mb, null);
             }
             catch {
