@@ -552,8 +552,17 @@ namespace xenwinsvc
             : base("Terminal Services Reset", "", "data/ts", false, exceptionhandler)
         {
             datats = wmisession.GetXenStoreItem("data/ts");
+            Disposer.Add(WmiBase.Singleton.ListenForEvent("__InstanceModificationEvent", new EventArrivedEventHandler(onFeatureWrapper)));
             onFeature();
         }
+
+        void onFeatureWrapper(object nothing, EventArrivedEventArgs args)
+        {
+            ManagementBaseObject targetInstance = (ManagementBaseObject)args.NewEvent["TargetInstance"];
+            datats.value = (uint)targetInstance.Properties["AllowTSConnections"].Value != 0 ? "1" : "0";
+            wmisession.Log("Setting data/ts to " + datats.value);
+        }
+
         bool query()
         {
             try
@@ -622,7 +631,6 @@ namespace xenwinsvc
                 }
 
                 this.set(enableval != 0);
-                datats.Remove();
             }
 
         }
