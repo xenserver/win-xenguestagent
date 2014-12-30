@@ -70,8 +70,16 @@ namespace xenwinsvc
 
         public ManagementEventWatcher GetListenerEvent(string eventname)
         {
+            if (eventname == "__InstanceModificationEvent")
+            {
+                WqlEventQuery eq = new WqlEventQuery(eventname, new TimeSpan(0, 0, 1), "TargetInstance ISA \"Win32_TerminalServiceSetting\"");
+                return new ManagementEventWatcher(Win32_TerminalServiceSetting.Scope, eq);
+            }
+            else
+            {
                 WqlEventQuery eq = new WqlEventQuery(eventname);
                 return new ManagementEventWatcher(Scope, eq);
+            }
         }
 
         private ManagementObject getBase()
