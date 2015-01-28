@@ -549,7 +549,7 @@ namespace xenwinsvc
     public class FeatureTerminalServicesReset : Feature {
         XenStoreItem datats;
         public FeatureTerminalServicesReset(IExceptionHandler exceptionhandler)
-            : base("Terminal Services Reset", "", "data/ts", false, exceptionhandler)
+            : base("Terminal Services Reset", "control/feature-ts2", "data/ts", false, exceptionhandler)
         {
             datats = wmisession.GetXenStoreItem("data/ts");
             Disposer.Add(WmiBase.Singleton.ListenForEvent("__InstanceModificationEvent", new EventArrivedEventHandler(onFeatureWrapper)));
