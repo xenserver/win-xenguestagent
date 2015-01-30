@@ -57,6 +57,7 @@ namespace XenGuestLib
         int bufferreadpos;
         int bufferstartreadpos;
         int buffersize;
+	int bufferneeded = 0;
         ICommunicator callbacks;
         bool connected = false;
         public const byte SET_CLIPBOARD = 1;
@@ -115,7 +116,9 @@ namespace XenGuestLib
 
             while (bufferreadpos > bufferstartreadpos)
             {
-                Debug.Print("Buffer to process is " +( bufferreadpos-bufferstartreadpos).ToString());
+                if ((bufferreadpos - bufferstartreadpos) < bufferneeded)
+		    return;
+		Debug.Print("Buffer to process is " +( bufferreadpos-bufferstartreadpos).ToString());
                 MemoryStream ms = new MemoryStream(this.buffer, bufferstartreadpos, bufferreadpos-bufferstartreadpos);
                 BinaryReader br = new BinaryReader(ms);
                 byte messagetype = br.ReadByte();
@@ -125,6 +128,10 @@ namespace XenGuestLib
                     if (messagetype == CONNECT)
                     {
                         Debug.Print("Message:Connect");
+			bufferneeded = br.ReadInt32();
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         HandleMsgConnect(cstring);
                         connected = true;
@@ -133,18 +140,27 @@ namespace XenGuestLib
                     else if (messagetype == CONNECTED)
                     {
                         Debug.Print("Message:Connected");
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         connected = true;
                         HandleMsgConnected(cstring);
 
                     }
                     else if (messagetype == PING) {
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         Debug.Print("PING message:" + cstring);
                     }
                     else
                     {
                         Debug.Print("Message:Unknown (connect phase)");
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         /* Unknown message*/
                         HandleMsgUnknown(messagetype, cstring);
@@ -155,6 +171,9 @@ namespace XenGuestLib
                     if (messagetype == SET_CLIPBOARD)
                     {
                         Debug.Print("Message:SetClipboard");
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         callbacks.HandleSetClipboard(cstring);
                     }
@@ -164,12 +183,18 @@ namespace XenGuestLib
                         callbacks.HandleSetClipboard("");
                     }
                     else if (messagetype == PING) {
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         Debug.Print("PING message:" + cstring);
                     }
                     else
                     {
                         Debug.Print("Message:Unknown (post connect phase)");
+			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
+			    return;
+			}
                         string cstring = br.ReadString();
                         /* Unknown message*/
                         HandleMsgUnknown(messagetype, cstring);
@@ -186,6 +211,7 @@ namespace XenGuestLib
                     bufferreadpos=0;
                     bufferstartreadpos=0;
                 }
+		bufferneeded = 0;
             }
 
         }
@@ -299,6 +325,7 @@ namespace XenGuestLib
                         Debug.Print("Send valid message: " + message.ToString()+" "+value);
                         BinaryWriter bw = new BinaryWriter(Pipe);
                         bw.Write(message);
+			bw.Write(value.Length);
                         bw.Write(value);
                     }
                 }
