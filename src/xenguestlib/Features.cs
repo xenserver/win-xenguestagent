@@ -36,6 +36,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using NetFwTypeLib;
 
 namespace xenwinsvc
 {
@@ -596,7 +597,20 @@ namespace xenwinsvc
         {
             datats = wmisession.GetXenStoreItem("data/ts");
         }
-        
+        void ChangeFirewallException(bool Enable)
+        {
+            try
+            {
+                Type type = Type.GetTypeFromCLSID(new Guid("{304CE942-6E39-40D8-943A-B913C40C9CD4}"));
+                INetFwMgr fwMgr = (INetFwMgr)Activator.CreateInstance(type);
+                INetFwService services = fwMgr.LocalPolicy.CurrentProfile.Services.Item(NET_FW_SERVICE_TYPE_.NET_FW_SERVICE_REMOTE_DESKTOP);
+                services.Enabled = Enable;
+            }
+            catch {
+                    wmisession.Log("Cannot modify Firewall RDP setting");
+            }
+        }
+
         void set(bool enable)
         {
             try {
@@ -604,6 +618,7 @@ namespace xenwinsvc
                 ManagementBaseObject mb = termserv.GetMethodParameters("SetAllowTSConnections");
                 mb["AllowTSConnections"] = (uint)(enable ? 1 : 0);
                 mb["ModifyFirewallException"] = 1;
+                ChangeFirewallException(enable);
                 termserv.InvokeMethod("SetAllowTSConnections", mb, null);
             }
             catch {
