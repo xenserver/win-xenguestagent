@@ -77,6 +77,9 @@ namespace xenwinsvc
         XenStoreItem pvinstalled;
         XenStoreItem guestdotnetframework;
 
+        XenStoreItem xdvdapresent;
+        XenStoreItem xdvdaproductinstalled;
+
         object pvinstalllock = new object();
         bool initialised = false;
 
@@ -237,8 +240,10 @@ namespace xenwinsvc
             pvmicro = wmisession.GetXenStoreItem("attr/PVAddons/MicroVersion");
             pvbuild = wmisession.GetXenStoreItem("attr/PVAddons/BuildVersion");
             pvinstalled = wmisession.GetXenStoreItem("attr/PVAddons/Installed");
-            
-            
+
+            xdvdapresent = wmisession.GetXenStoreItem("data/xd/present");
+            xdvdaproductinstalled = wmisession.GetXenStoreItem("data/xd/product_installed");
+
             lock (pvinstalllock)
             {
                 registered = false;
@@ -269,8 +274,72 @@ namespace xenwinsvc
                 throw;
             }
             addSystemInfoToStore();
+            addXDInfoToStore();
             WmiBase.Singleton.Kick();
         }
+
+        void addXDInfoToStore()
+        {
+            try
+            {
+                string vdapath;
+                if (Win32Impl.is64BitOS() && (!Win32Impl.isWOW64()))
+                {
+                    vdapath = "Software\\Wow6432Node\\Citrix\\VirtualDesktopAgent";
+                }
+                else {
+                    vdapath = "Software\\Citrix\\VirtualDesktopAgent";
+                }
+                try
+                {
+                    if (Array.Exists(Registry.LocalMachine.OpenSubKey(vdapath).GetValueNames(),
+                        delegate(string s) { return s.Equals("ListOfDDCs"); }))
+                    {
+                        xdvdapresent.value = "1";
+                    }
+                    else
+                    {
+                        // ListOfDDCs not found
+                        xdvdapresent.value = "0";
+                    }
+
+                    try
+                    {
+                        if (Registry.LocalMachine.OpenSubKey(vdapath).GetValueKind("ProductInstalled") == RegistryValueKind.DWord)
+                        {
+                            try
+                            {
+                                xdvdaproductinstalled.value = ((int)Registry.LocalMachine.OpenSubKey(vdapath).GetValue("ProductInstalled")).ToString();
+                            }
+                            catch (Exception e)
+                            {
+                                wmisession.Log("addXDInfoToStore Can't read ProductInstalled : " + e.ToString());
+                            }
+                        }
+                        else
+                        {
+                            wmisession.Log("addXDInfoToStore ProductInstalled is not a DWORD");
+                        }
+                    }
+                    catch
+                    {
+                        //ProductInstalled doesn't exist
+                    }
+
+                }
+                catch
+                {
+                    // Unable to read vdapath
+                    xdvdapresent.value = "0";
+                }
+                
+            }
+            catch(Exception e)
+            {
+                wmisession.Log("addXDInfoToStore Failed : "+e.ToString());
+            }
+        }
+
         void addSystemInfoToStore()
         {
             osclass.value = attrwinnt;
