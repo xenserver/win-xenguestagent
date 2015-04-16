@@ -110,7 +110,7 @@ namespace XenGuestLib
 
         void processData(int bytes)
         {
-            Debug.Print("Process data " + bytes.ToString());
+            Debug.Print("Process data " + bytes.ToString()+" "+bufferneeded.ToString());
             
             bufferreadpos +=bytes;
 
@@ -140,6 +140,7 @@ namespace XenGuestLib
                     else if (messagetype == CONNECTED)
                     {
                         Debug.Print("Message:Connected");
+			bufferneeded = br.ReadInt32();
 			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
 			    return;
 			}
@@ -149,6 +150,7 @@ namespace XenGuestLib
 
                     }
                     else if (messagetype == PING) {
+			bufferneeded = br.ReadInt32();
 			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
 			    return;
 			}
@@ -158,6 +160,7 @@ namespace XenGuestLib
                     else
                     {
                         Debug.Print("Message:Unknown (connect phase)");
+			bufferneeded = br.ReadInt32();
 			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
 			    return;
 			}
@@ -171,6 +174,7 @@ namespace XenGuestLib
                     if (messagetype == SET_CLIPBOARD)
                     {
                         Debug.Print("Message:SetClipboard");
+			bufferneeded = br.ReadInt32();
 			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
 			    return;
 			}
@@ -183,6 +187,7 @@ namespace XenGuestLib
                         callbacks.HandleSetClipboard("");
                     }
                     else if (messagetype == PING) {
+			bufferneeded = br.ReadInt32();
 			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
 			    return;
 			}
@@ -192,6 +197,7 @@ namespace XenGuestLib
                     else
                     {
                         Debug.Print("Message:Unknown (post connect phase)");
+			bufferneeded = br.ReadInt32();
 			if (bufferneeded > (bufferreadpos - bufferstartreadpos)) {
 			    return;
 			}
