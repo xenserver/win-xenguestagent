@@ -220,6 +220,7 @@ namespace xenwinsvc
                 new FeaturePing(this);
                 new FeatureDomainJoin(this);
                 new FeatureSetComputerName(this);
+                new FeatureXSBatchCommand(this);
 
                 wmisession.Log("About to try snapshot");
                 if (FeatureSnapshot.IsSnapshotSupported())

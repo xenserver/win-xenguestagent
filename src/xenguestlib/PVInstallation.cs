@@ -35,6 +35,8 @@ using System.Management;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Pipes;
 namespace xenwinsvc
 {
     public class PVInstallation : Feature, IRefresh

@@ -86,6 +86,10 @@ namespace xenwinsvc
             }
                 
         }
+        protected void addAdvert(string advertname) {
+            advert = wmisession.GetXenStoreItem(advertname);
+            features.Add(this);
+        }
         protected void doAdvert() {
             try {
                 advert.value = "1";
@@ -125,9 +129,7 @@ namespace xenwinsvc
             listener = controlKey.Watch(new EventArrivedEventHandler(onFeatureWrapper));
             if (!advertise.Equals(""))
             {
-                advert = wmisession.GetXenStoreItem(advertise);
-                features.Add(this);
-
+                this.addAdvert(advertise);
             }
             Disposer.Add(this);
          
@@ -651,6 +653,219 @@ namespace xenwinsvc
         }
     }
 
+    public class FeatureXSBatchCommand : Feature
+    {
+        XenStoreItem    state;
+        XenStoreItem    script;
+        XenStoreItem    ret;
+        XenStoreItem    stdout;
+        XenStoreItem    stderr;
+        int             returnCode;
+        string          stdoutStr;
+        string          stderrStr;
+        string          batchFile   = "";
+        object          cmdLock     = new object();
+        bool            newCommand;
+
+        const string    READY       = "READY";
+        const string    IN_PROGRESS = "IN PROGRESS";
+        const string    FAILURE     = "FAILURE";
+        const string    TRUNCATED   = "TRUNCATED";
+        const string    SUCCESS     = "SUCCESS";
+        const int       MAXLENGTH   = 1024;
+        
+        public FeatureXSBatchCommand(IExceptionHandler exceptionhandler) :
+            base("XS Batch Command", "", "control/batcmd/state", true, exceptionhandler)
+        {
+            if (wmisession.GetXenStoreItem("control/feature-remote-exec").Exists()) {
+                wmisession.Log("Remote exec found");
+                this.Dispose();
+                throw new Exception("remote-exec exists");
+            }
+            
+            this.state = wmisession.GetXenStoreItem("control/batcmd/state");
+            this.script = wmisession.GetXenStoreItem("control/batcmd/script");
+            this.ret = wmisession.GetXenStoreItem("control/batcmd/return");
+            this.stdout = wmisession.GetXenStoreItem("control/batcmd/stdout");
+            this.stderr = wmisession.GetXenStoreItem("control/batcmd/stderr");
+            this.addAdvert("control/feature-xs-batcmd");
+        }
+
+        delegate void TransactionCode();
+
+        void handleTransaction(TransactionCode tc)
+        {
+            bool handled = false;
+            while (!handled)
+            {
+                wmisession.StartTransaction();
+                try
+                {
+                    tc();
+                    try
+                    {
+                        wmisession.CommitTransaction();
+                        handled = true;
+                    }
+                    catch
+                    {
+                        // an exception during the commit means handled doesn't get set
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+                finally
+                {
+                    if (!handled)
+                    {
+                        wmisession.AbortTransaction();
+                    }
+                }
+            }
+        }
+
+        void runCommand(string batchfile)
+        {
+            string tmpDir = System.IO.Path.GetRandomFileName();
+
+            stderrStr = "";
+            stdoutStr = "";
+
+            System.Security.AccessControl.DirectorySecurity sec = new System.Security.AccessControl.DirectorySecurity();
+
+            sec.AddAccessRule(
+                new System.Security.AccessControl.FileSystemAccessRule(
+                    System.Security.Principal.WindowsIdentity.GetCurrent().User,
+                    System.Security.AccessControl.FileSystemRights.FullControl,
+                    System.Security.AccessControl.AccessControlType.Allow));
+
+            System.Security.AccessControl.FileSecurity filesec = new System.Security.AccessControl.FileSecurity();
+            filesec.AddAccessRule(
+                new System.Security.AccessControl.FileSystemAccessRule(
+                    System.Security.Principal.WindowsIdentity.GetCurrent().User,
+                    System.Security.AccessControl.FileSystemRights.FullControl,
+                    System.Security.AccessControl.AccessControlType.Allow));
+
+            System.IO.Directory.CreateDirectory(tmpDir, sec);
+
+            using (System.IO.StreamWriter execstream = new System.IO.StreamWriter(System.IO.File.Create(tmpDir+"\\exec.bat",1024, System.IO.FileOptions.None, filesec)))
+            {
+                execstream.Write(batchfile);
+            }
+            
+            try
+            {
+                ProcessStartInfo startInfo = new ProcessStartInfo(Environment.GetEnvironmentVariable("SystemRoot") + "\\System32\\cmd.exe", "/Q /C " + tmpDir + "\\exec.bat")
+                {
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                };
+
+                using (Process proc = new Process())
+                {
+                    proc.StartInfo = startInfo;
+                    
+                    proc.OutputDataReceived += 
+                        delegate(object sendingProcess, DataReceivedEventArgs outline) {
+                            if (!String.IsNullOrEmpty(outline.Data))
+                            {
+                                lock (stdoutStr)
+                                {
+                                    stdoutStr += outline.Data;
+                                }
+                            }
+                        };
+                    
+                    proc.ErrorDataReceived += 
+                        delegate(object sendingProcess, DataReceivedEventArgs outline) {
+                            if (!String.IsNullOrEmpty(outline.Data))
+                            {
+                                lock (stderrStr)
+                                {
+                                    stderrStr += outline.Data;
+                                }
+                            }
+                        };
+
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    proc.WaitForExit();
+                    
+                    returnCode = proc.ExitCode;
+                }
+            }
+            finally
+            {
+                System.IO.Directory.Delete(tmpDir,true);
+            }
+        }
 
 
+        protected override void onFeature()
+        {
+            string result = FeatureXSBatchCommand.SUCCESS;
+            try
+            {
+                lock (cmdLock)
+                {
+                    newCommand = false;
+                    handleTransaction(
+                        delegate()
+                        {
+                            if (controlKey.Exists())
+                            {
+                                if (controlKey.value.Equals(FeatureXSBatchCommand.READY))
+                                {
+
+                                    this.state.value = FeatureXSBatchCommand.IN_PROGRESS;
+                                    batchFile = this.script.value;
+                                    newCommand = true;
+                                }
+                            }
+                        });
+                    if (!newCommand)
+                    {
+                        return;
+                    }
+                }
+
+                runCommand(batchFile);
+
+                this.ret.value = returnCode.ToString();
+
+                if (stderrStr.Length > FeatureXSBatchCommand.MAXLENGTH)
+                {
+                    stderrStr = stderrStr.Substring(0, FeatureXSBatchCommand.MAXLENGTH - 1);
+                    result = FeatureXSBatchCommand.TRUNCATED;
+                }
+
+                if (stdoutStr.Length > FeatureXSBatchCommand.MAXLENGTH)
+                {
+                    stdoutStr = stdoutStr.Substring(0, FeatureXSBatchCommand.MAXLENGTH - 1);
+                    result = FeatureXSBatchCommand.TRUNCATED;
+                }
+
+                this.stdout.value = stdoutStr;
+                this.stderr.value = stderrStr;
+                state.value = result;
+            }
+            catch (Exception e)
+            {
+                try
+                {
+                    wmisession.Log("Exception " + e.ToString());
+                    this.stderr.value = (e.ToString().Length < FeatureXSBatchCommand.MAXLENGTH) ? e.ToString() : e.ToString().Substring(0, FeatureXSBatchCommand.MAXLENGTH);
+                }
+                finally
+                {
+                    result = FeatureXSBatchCommand.FAILURE;
+                    state.value = result;
+                }
+            }
+        }
+    }
 }
