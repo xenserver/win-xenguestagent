@@ -52,7 +52,7 @@ namespace xenwinsvc
             serviceInstaller.StartType = ServiceStartMode.Automatic;
             serviceInstaller.ServiceName = "Citrix Xen Guest Agent";
             serviceInstaller.Description = "Monitors and provides various metrics to XenStore";
-            serviceInstaller.ServicesDependedOn = new string[] { "Winmgmt" };
+            serviceInstaller.ServicesDependedOn = new string[] { "Winmgmt", "CryptSvc" };
 
             Installers.Add(serviceInstaller);
             Installers.Add(processInstaller);
