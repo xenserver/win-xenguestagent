@@ -133,7 +133,8 @@ namespace xenwinsvc
                     {
                         EventLog.WriteEntry("Citrix Xen Guest Agent cannot find XenIface WMI interface");
                     }
-                    catch { };
+                    catch { };
+
                     int activehandle =WaitHandle.WaitAny(waitHandles);
                     Debug.Print("Received event");
        
@@ -215,6 +216,7 @@ namespace xenwinsvc
 
                 
                 wmisession.Log("About to run features");
+                new FeatureLicensed(this);
                 new FeatureDumpLog(this);
                 new FeatureGC(this);
                 new FeaturePing(this);
@@ -225,11 +227,11 @@ namespace xenwinsvc
                 wmisession.Log("About to try snapshot");
                 if (FeatureSnapshot.IsSnapshotSupported())
                 {
-                    new FeatureSnapshot(this);
+                    Refresher.Add(new FeatureSnapshot(this));
                 }
                 else
                 {
-                    Debug.Print("Snapshot not supported on this platform");
+                    wmisession.Log("Snapshot not supported on this platform");
                     FeatureSnapshot.removeSnapshot(wmisession);
                 }
                 new FeatureTerminalServicesReset(this);
@@ -405,7 +407,31 @@ namespace xenwinsvc
         }
         protected override void OnStart(string[] args)
         {
-            try {                Debug.Print("Starting");                try {                    EventLog.WriteEntry("Service starting");                }                catch {                    Debug.Print("Writing to the event log is failing");                }                needsShutdown = new ManualResetEvent(false);                base.OnStart(args);                hiddenform = new HiddenForm();                new Thread(RunMessagePump, 1024*256).Start();                hiddenform.started.WaitOne();                starting = false;                running = false;                OnNeedsReset();            }            catch (Exception e) {                Debug.Print("Exception :" + e.ToString());                try {                    EventLog.WriteEntry("Exception :"+e.ToString());                }                catch{}            }
+            try {
+                Debug.Print("Starting");
+                try {
+                    EventLog.WriteEntry("Service starting");
+                }
+                catch {
+                    Debug.Print("Writing to the event log is failing");
+                }
+                needsShutdown = new ManualResetEvent(false);
+                base.OnStart(args);
+                hiddenform = new HiddenForm();
+                new Thread(RunMessagePump, 1024*256).Start();
+                hiddenform.started.WaitOne();
+                starting = false;
+                running = false;
+                OnNeedsReset();
+            }
+            catch (Exception e) {
+                Debug.Print("Exception :" + e.ToString());
+                try {
+                    EventLog.WriteEntry("Exception :"+e.ToString());
+                }
+                catch{}
+            }
+
         }
 
         protected override void OnStop()

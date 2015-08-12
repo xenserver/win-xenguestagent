@@ -107,6 +107,9 @@ namespace xenwinsvc
             }
             if (needsinstalling)
                 return true;
+            if (pvinstalledStatus != FeatureLicensed.IsLicensed())
+            // For license status not match the PVAddon registe status, we need to refresh the status of PVAddon
+                return true;
             return false;
          
         }
@@ -122,7 +125,7 @@ namespace xenwinsvc
                 {
                     Feature.Advertise(wmisession);
                 }
-                if (needsinstalling && !installing())
+                if ((needsinstalling && !installing()) || (pvinstalledStatus != FeatureLicensed.IsLicensed()))
                 {
                     RefreshXenstore();
                     return true;
@@ -177,11 +180,12 @@ namespace xenwinsvc
                 return true;
             }
         }
+        volatile bool pvinstalledStatus = false;
         public bool registered
         {
             get
             {
-                if (pvinstalled.Exists() && pvinstalled.value.Equals("1"))
+                if (pvinstalled.Exists() && pvinstalled.value.Equals("1") && FeatureLicensed.IsLicensed())
                     return true;
                 return false;
             }
@@ -190,9 +194,10 @@ namespace xenwinsvc
                 if (value)
                 {
 
-                    if (!installing())
+                    if (!installing() && FeatureLicensed.IsLicensed())
                     {
                         pvinstalled.value = "1";
+                        pvinstalledStatus = true;
                     }
                 }
                 else
@@ -201,6 +206,7 @@ namespace xenwinsvc
                     {
                         pvinstalled.Remove();
                     }
+                    pvinstalledStatus = false;
                 }
             }
         }
@@ -258,7 +264,7 @@ namespace xenwinsvc
 
         public void RegisterPVAddons()
         {
-            registered = true;
+            registered = FeatureLicensed.IsLicensed();
             try
             {
                 if (!installing())
