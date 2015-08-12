@@ -882,14 +882,14 @@ namespace xenwinsvc
             : base("licensed", "", "control/feature-licensed", false, exceptionhandler)
         {
         }
-        static volatile bool licensed = false;
+        static volatile bool licensed = true;
         public static bool IsLicensed()
         {
             return licensed;
         }
         protected override void onFeature()
         {
-            int enableval = 0;
+            int enableval = 1;
             if (controlKey.Exists())
             {
                 try
