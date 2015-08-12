@@ -216,6 +216,7 @@ namespace xenwinsvc
 
                 
                 wmisession.Log("About to run features");
+                new FeatureLicensed(this);
                 new FeatureDumpLog(this);
                 new FeatureGC(this);
                 new FeaturePing(this);
@@ -226,11 +227,11 @@ namespace xenwinsvc
                 wmisession.Log("About to try snapshot");
                 if (FeatureSnapshot.IsSnapshotSupported())
                 {
-                    new FeatureSnapshot(this);
+                    Refresher.Add(new FeatureSnapshot(this));
                 }
                 else
                 {
-                    Debug.Print("Snapshot not supported on this platform");
+                    wmisession.Log("Snapshot not supported on this platform");
                     FeatureSnapshot.removeSnapshot(wmisession);
                 }
                 new FeatureTerminalServicesReset(this);

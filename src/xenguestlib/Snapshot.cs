@@ -44,7 +44,7 @@ using XenGuestLib;
 
 namespace xenwinsvc
 {
-    public class FeatureSnapshot : Feature
+    public class FeatureSnapshot : Feature, IRefresh
     {
         class CheckSupported
         {
@@ -156,18 +156,19 @@ namespace xenwinsvc
         }
 
         public FeatureSnapshot(IExceptionHandler exceptionhandler)
-            : base("snapshot", "control/feature-snapshot", "control/snapshot/action",true, exceptionhandler)
+            : base("snapshot", "", "control/snapshot/action",true, exceptionhandler)
         {
             actionKey = wmisession.GetXenStoreItem("control/snapshot/action");
             typeKey = wmisession.GetXenStoreItem("control/snapshot/type");
             statusKey = wmisession.GetXenStoreItem("control/snapshot/status");
+            featureKey = wmisession.GetXenStoreItem("control/feature-snapshot");
             threadlock = new object();
         }
 
         XenStoreItem actionKey;
         XenStoreItem typeKey;
         XenStoreItem statusKey;
-
+        XenStoreItem featureKey;
 
         private delegate StringBuilder CharallocCallback(int size);
         
@@ -471,6 +472,19 @@ namespace xenwinsvc
             startSnapshotThread(snapshotThreadHandler);
         }
 
+        volatile bool licensed = false;
+        bool xenwinsvc.IRefresh.NeedsRefresh()
+        {
+            if (licensed != FeatureLicensed.IsLicensed())
+                return true;
+            
+            return false;
+        }
+        bool xenwinsvc.IRefresh.Refresh(bool force)
+        {
+            licensed = FeatureLicensed.IsLicensed();
+            featureKey.value = licensed ? "1" : "0";
+            return true;
+        }
     }
-
 }

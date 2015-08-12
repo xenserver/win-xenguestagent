@@ -875,4 +875,35 @@ namespace xenwinsvc
             }
         }
     }
+
+    public class FeatureLicensed : Feature
+    {
+        public FeatureLicensed(IExceptionHandler exceptionhandler)
+            : base("licensed", "", "control/feature-licensed", false, exceptionhandler)
+        {
+        }
+        static volatile bool licensed = false;
+        public static bool IsLicensed()
+        {
+            return licensed;
+        }
+        protected override void onFeature()
+        {
+            int enableval = 0;
+            if (controlKey.Exists())
+            {
+                try
+                {
+                    enableval = int.Parse(controlKey.value);
+                }
+                catch
+                {
+                    return;
+                }
+            }
+            licensed = (enableval != 0);
+
+            wmisession.Log("license status is " + licensed.ToString());
+        }
+    }
 }
