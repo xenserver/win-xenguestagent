@@ -237,7 +237,7 @@ namespace xenwinsvc
         {
             IntPtr token;
             if (!WTSQueryUserToken(sessionId, out token)) {
-                Error("WTSQueryUserToken");
+                throw Error("WTSQueryUserToken");
             }
             return token;
         }
