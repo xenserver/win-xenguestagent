@@ -879,7 +879,7 @@ namespace xenwinsvc
     public class FeatureLicensed : Feature
     {
         public FeatureLicensed(IExceptionHandler exceptionhandler)
-            : base("licensed", "", "control/feature-licensed", false, exceptionhandler)
+            : base("licensed", "", "/guest_agent_features/Guest_agent_auto_update/licensed", false, exceptionhandler)
         {
         }
         static volatile bool licensed = true;
@@ -904,6 +904,37 @@ namespace xenwinsvc
             licensed = (enableval != 0);
 
             wmisession.Log("license status is " + licensed.ToString());
+        }
+    }
+
+    public class FeatureVSSLicensed : Feature
+    {
+        public FeatureVSSLicensed(IExceptionHandler exceptionhandler)
+            : base("VSSlicensed", "", "/VSS/licensed", false, exceptionhandler)
+        {
+        }
+        static volatile bool licensed = true;
+        public static bool IsLicensed()
+        {
+            return licensed;
+        }
+        protected override void onFeature()
+        {
+            int enableval = 1;
+            if (controlKey.Exists())
+            {
+                try
+                {
+                    enableval = int.Parse(controlKey.value);
+                }
+                catch
+                {
+                    return;
+                }
+            }
+            licensed = (enableval != 0);
+
+            wmisession.Log("VSS license status is " + licensed.ToString());
         }
     }
 }
