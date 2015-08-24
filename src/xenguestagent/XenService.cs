@@ -110,6 +110,9 @@ namespace xenwinsvc
             try {
                 Debug.Print("ServiceThreadHandler");
                 needsShutdown.Reset();
+
+                NetInfo.StoreChangedNetworkSettings();
+
                 WmiBase.Reset();
                 Debug.Print("WMI Check");
                 if (WmiBase.Check())

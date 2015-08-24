@@ -35,9 +35,9 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Management;
 using System.Diagnostics;
-
-
-
+using System.ServiceProcess;
+using Microsoft.Win32;
+using System.Linq;
 
 namespace xenwinsvc
 {
@@ -203,6 +203,7 @@ namespace xenwinsvc
         public bool Refresh(bool force)
         {
             updateNetworkInfo();
+            NetInfo.StoreChangedNetworkSettings();
             return true;
         }
 
@@ -211,6 +212,7 @@ namespace xenwinsvc
             try
             {
                 updateNetworkInfo();
+                NetInfo.StoreChangedNetworkSettings();
                 WmiBase.Singleton.Kick();
             }
             catch (System.Management.ManagementException x) {
@@ -247,6 +249,426 @@ namespace xenwinsvc
             vifListen = devicevif.Watch(onVifChanged);
         }
 
+        const string NETSETTINGSSTORE = @"SOFTWARE\Citrix\XenToolsNetSettings";
+        const string ENUM = @"SYSTEM\CurrentControlSet\Enum\";
+        const string CONTROL = @"SYSTEM\CurrentControlSet\Control\";
+        const string CLASS = CONTROL+@"Class\";
+        const string NETWORKDEVICE = CLASS+@"{4D36E972-E325-11CE-BFC1-08002BE10318}";
+        const string TCPIPSRV = @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
+        const string TCPIP6SRV = @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces";
+        const string NETBTSRV = @"SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces";
+        const string NSI = CLASS+@"NSI\";
+        const string STORE = @"SOFTWARE\Citrix\XenToolsNetSettings\";
+        const string STATICIPV4STORE = STORE + @"IPV4";
+        const string STATICIPV6STORE = STORE + @"IPV6";
+        const string STATICIPV4 = NSI + @"{eb004a00-9b1a-11d4-9123-0050047759bc}\10\";
+        const string STATICIPV6 = NSI + @"{eb004a01-9b1a-11d4-9123-0050047759bc}\10\";
+
+        static RegistryKey FindClassDeviceKeyForNetCfgInstanceId(string NetCfgInstanceId)
+        {
+            using (RegistryKey netdevkey = Registry.LocalMachine.OpenSubKey(NETWORKDEVICE))
+            {
+                foreach (string keyname in netdevkey.GetSubKeyNames())
+                {
+                    try
+                    {
+                        RegistryKey devicekey = netdevkey.OpenSubKey(keyname);
+                        
+                        if (((string)devicekey.GetValue("NetCfgInstanceId")).Equals(NetCfgInstanceId))
+                        {
+                            return devicekey;
+                        }
+                        else {
+                            devicekey.Close();
+                        }
+                    }
+                    catch{}
+                }
+            }
+            throw new Exception("Unable to find Class Device Key for Mac");
+        }
+
+        static string GetMacStrFromPhysical(PhysicalAddress pa)
+        {
+            byte[] macbyte = pa.GetAddressBytes();
+            string pastr = string.Format("{0:X2}{1:X2}{2:X2}{3:X2}{4:X2}{5:X2}", macbyte[0], macbyte[1], macbyte[2], macbyte[3], macbyte[4], macbyte[5]);
+            return pastr;
+        }
+
+        static string FindNetCfgInstanceIdForMac(string mac)
+        {
+            NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
+            foreach (NetworkInterface nic in nics)
+            {
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+                {
+                    if (nic.OperationalStatus == OperationalStatus.Up)
+                    {
+                        string NetCfgInstanceId = nic.Id;
+                        string pastr = GetMacStrFromPhysical(nic.GetPhysicalAddress());
+                        if (pastr.Equals(mac))
+                        {
+                            return NetCfgInstanceId;
+                        }
+                    }
+                }
+            }
+            throw new Exception("Unable to find NetCfgInstanceId for mac address");
+        }
+
+        static string FindDeviceKeyForMac(string mac)
+        {
+            string NetCfgInstanceId = FindNetCfgInstanceIdForMac(mac);
+            
+            using (RegistryKey devicekey= FindClassDeviceKeyForNetCfgInstanceId(NetCfgInstanceId)){
+                return (string)devicekey.GetValue("DeviceInstanceId");
+            }
+        }
+
+        static string FindNetLuidMatchStrForNetCfgInstanceId(string NetCfgInstanceId)
+        {
+            using (RegistryKey classdevkey = FindClassDeviceKeyForNetCfgInstanceId(NetCfgInstanceId))
+            {
+                int LuidIndex = (int)classdevkey.GetValue("NetLuidIndex");
+                Debug.Print("LuidIndex " + LuidIndex.ToString());
+                int IfType = (int)classdevkey.GetValue("*IfType");
+                Debug.Print("*IfType " + IfType.ToString());
+                string LuidStr = new string(string.Format("{0:x6}", LuidIndex & 0xFFFFFF).ToCharArray().Reverse().ToArray());
+                string IfStr = new string(string.Format("{0:x4}", IfType & 0xFFFF).ToCharArray().Reverse().ToArray());
+                string matchstr = string.Format("000000" + LuidStr + IfStr);
+                Debug.Print("Match String " + matchstr);
+                return matchstr;
+            }
+        }
+
+        static string FindNetCfgInstanceIdForDriverKey(string driverkey)
+        {
+            Debug.Print("Driverkey " + driverkey);
+            using (RegistryKey enumkey = Registry.LocalMachine.OpenSubKey(ENUM + driverkey))
+            {
+                string classkeyname = (string)enumkey.GetValue("Driver");
+                Debug.Print("Class key name " + classkeyname);
+                using (RegistryKey classkey = Registry.LocalMachine.OpenSubKey(CLASS + classkeyname))
+                {
+                    string NetCfgInstanceId = (string)classkey.GetValue("NetCfgInstanceId");
+                    return NetCfgInstanceId;
+                }
+            }
+        }
+
+        public static void RecordDevices(string type)
+        { 
+            NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
+            foreach (NetworkInterface nic in nics)
+            {
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+                {
+                    PhysicalAddress pa = nic.GetPhysicalAddress();
+                    string NetCfgInstanceId = nic.Id;
+                    
+
+                    using (RegistryKey netsetstorekey = Registry.LocalMachine.OpenSubKey(NETSETTINGSSTORE, true))
+                    {
+                        using (RegistryKey emulatedkey = netsetstorekey.CreateSubKey(type))
+                        {
+                            using(RegistryKey devicekey = FindClassDeviceKeyForNetCfgInstanceId(NetCfgInstanceId)){
+                                try
+                                {
+                                    string driverkey = (string)devicekey.GetValue("DeviceInstanceId");
+                                    emulatedkey.SetValue(GetMacStrFromPhysical(pa), driverkey);
+                                }
+                                catch (Exception e)
+                                {
+                                    Debug.Print(e.ToString());
+                                }
+                           }
+                        }
+                    }
+                }                
+            }
+        }
+
+        private static void ClonePVStatics(string SrcName, string DestName, string SrcNetLuidMatchStr, string DestNetLuidMatchStr, bool delete)
+        {
+            try
+            {
+                using (RegistryKey staticstore = Registry.LocalMachine.OpenSubKey(SrcName, true))
+                using (RegistryKey netstatic = Registry.LocalMachine.CreateSubKey(DestName))
+                {
+                    if (staticstore.GetValueNames().Contains(SrcNetLuidMatchStr))
+                    {
+                        netstatic.SetValue(DestNetLuidMatchStr, staticstore.GetValue(SrcNetLuidMatchStr),
+                            staticstore.GetValueKind(SrcNetLuidMatchStr));
+                        if (delete)
+                        {
+                            staticstore.DeleteValue(SrcNetLuidMatchStr);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static void CloneValues(RegistryKey src, RegistryKey dest)
+        {
+            string[] valuenames = src.GetValueNames();
+            foreach (string name in valuenames)
+            {
+                dest.SetValue(name, src.GetValue(name), src.GetValueKind(name));
+            }
+        }
+
+        private static void FromServiceIfaceToStore(string Src, RegistryKey StoreKey)
+        {
+            Debug.Print("do tcpip");
+            using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).OpenSubKey(Src))
+            {
+                using (RegistryKey tcpipdestkey = StoreKey.CreateSubKey("Tcpip"))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+            Debug.Print("do tcpip6");
+            using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).OpenSubKey(Src))
+            {
+                using (RegistryKey tcpipdestkey = StoreKey.CreateSubKey("Tcpip6"))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+            Debug.Print("do netbt");
+            using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(NETBTSRV).OpenSubKey("Tcpip_" + Src))
+            {
+                using (RegistryKey tcpipdestkey = StoreKey.CreateSubKey("NetBT"))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+        }
+
+        private static void FromServiceIfaceToSeviceIface(string Src, string Dest)
+        {
+            using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).OpenSubKey(Src))
+            {
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).OpenSubKey(Dest,true))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+
+            using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).OpenSubKey(Src))
+            {
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).OpenSubKey(Dest,true))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+
+            using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(NETBTSRV).OpenSubKey("Tcpip_" + Src))
+            {
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(NETBTSRV).OpenSubKey("Tcpip_" + Dest, true))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+        }
+
+        private static void FromStoreToServiceIface(RegistryKey StoreKey, string Dest)
+        {
+            using (RegistryKey tcpipsrckey = StoreKey.OpenSubKey("Tcpip"))
+            {
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).CreateSubKey(Dest))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+
+            using (RegistryKey tcpipsrckey = StoreKey.OpenSubKey("Tcpip6"))
+            {
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).CreateSubKey(Dest))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+
+            using (RegistryKey tcpipsrckey = StoreKey.OpenSubKey("NetBT"))
+            {
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(NETBTSRV).CreateSubKey("Tcpip_"+Dest))
+                {
+                    CloneValues(tcpipsrckey, tcpipdestkey);
+                }
+            }
+        }
+
+        private static void StorePVNetworkSettingsToEmulatedDevicesOrSave()
+        {
+            using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
+            using (RegistryKey pvstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\PV"))
+            {
+                NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
+                foreach (NetworkInterface nic in nics)
+                {
+                    if (nic.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+                    {
+                        PhysicalAddress pa = nic.GetPhysicalAddress();
+                        string matchmac = GetMacStrFromPhysical(pa);
+                        if (emustore.GetValueNames().Contains(matchmac))
+                        {
+                            if (pvstore.GetValueNames().Contains(matchmac))
+                            {
+                                string SrcNetCfgInstanceId;
+                                string DestNetCfgInstanceId;
+                                string DestNetLuidMatchStr;
+                                string SrcNetLuidMatchStr;
+                                try
+                                {
+                                    SrcNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)pvstore.GetValue(matchmac));
+                                    DestNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)emustore.GetValue(matchmac));
+                                }
+                                catch
+                                {
+                                    continue;
+                                }
+                                FromServiceIfaceToSeviceIface(SrcNetCfgInstanceId, DestNetCfgInstanceId);
+                                try
+                                {
+                                    DestNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(DestNetCfgInstanceId);
+                                    SrcNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(SrcNetCfgInstanceId);
+                                }
+                                catch
+                                {
+                                    continue;
+                                }
+                                ClonePVStatics(STATICIPV4, STATICIPV4, SrcNetLuidMatchStr, DestNetLuidMatchStr, false);
+                                ClonePVStatics(STATICIPV6, STATICIPV6, SrcNetLuidMatchStr, DestNetLuidMatchStr, false);
+                            }
+                        }
+                        else
+                        {
+
+                            Debug.Print("MAC " + matchmac);
+                            if (pvstore.GetValueNames().Contains(matchmac))
+                            {
+                                string SrcNetLuidMatchStr;
+                                Debug.Print("Got");
+                                string SrcNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)pvstore.GetValue(matchmac));
+                                Debug.Print("NetCfg" + SrcNetCfgInstanceId);
+                                using (RegistryKey macstore = Registry.LocalMachine.OpenSubKey(NETSETTINGSSTORE + @"\Mac", true))
+                                {
+                                    Debug.Print("Found mac");
+                                    using (RegistryKey ifacekey = macstore.CreateSubKey(matchmac))
+                                    {
+                                        Debug.Print("Create mac");
+                                        ifacekey.SetValue("ifacetype", "PV", RegistryValueKind.String);
+                                        FromServiceIfaceToStore(SrcNetCfgInstanceId, ifacekey);
+                                    }
+                                }
+                                try
+                                {
+                                    SrcNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(SrcNetCfgInstanceId);
+                                }
+                                catch
+                                {
+                                    continue;
+                                }
+                                ClonePVStatics(STATICIPV4, STATICIPV4STORE, SrcNetLuidMatchStr, SrcNetLuidMatchStr, false);
+                                ClonePVStatics(STATICIPV6, STATICIPV6STORE, SrcNetLuidMatchStr, SrcNetLuidMatchStr, false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void StoreSavedNetworkSettingsToEmulatedDevices()
+        {
+            using (RegistryKey macstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE+@"\Mac"))
+            using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
+            {
+                foreach (string macaddr in macstore.GetSubKeyNames())
+                {
+                    
+                    try
+                    {
+                        using (RegistryKey ifacekey = macstore.OpenSubKey(macaddr, true))
+                        {
+                            if (((string)ifacekey.GetValue("ifacetype")).Equals("PV"))
+                            {
+                                string NetCfgInstanceId;
+                                try
+                                {
+                                    NetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)emustore.GetValue(macaddr));
+                                }
+                                catch
+                                {
+                                    continue;
+                                }
+                                FromStoreToServiceIface(ifacekey, NetCfgInstanceId);
+                            }
+                            else {
+                                continue;
+                            }
+                        }
+                        macstore.DeleteSubKeyTree(macaddr);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            using (RegistryKey pvstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\PV"))
+            using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
+            {
+                foreach (string devmac in pvstore.GetValueNames())
+                {
+                    if (emustore.GetValueNames().Contains(devmac)) {
+                        string EmuNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)emustore.GetValue(devmac));
+                        string PVNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)pvstore.GetValue(devmac));
+                        string EmuNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(EmuNetCfgInstanceId);
+                        string PVNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(PVNetCfgInstanceId);
+
+                        ClonePVStatics(STATICIPV4STORE, STATICIPV4, PVNetLuidMatchStr, EmuNetLuidMatchStr, true);
+                        ClonePVStatics(STATICIPV6STORE, STATICIPV6, PVNetLuidMatchStr, EmuNetLuidMatchStr,true );
+                    }   
+                }
+            }
+
+        }
+
+        public static void StoreChangedNetworkSettings()
+        {
+            try
+            {
+                ServiceController sc = new ServiceController("XenNet");
+                if (sc.Status == ServiceControllerStatus.Running)
+                {
+                    RecordDevices("PV");
+                    StorePVNetworkSettingsToEmulatedDevicesOrSave();
+                }
+                else
+                {
+                    Debug.Print("No xennet found");
+                    try
+                    {
+                        RecordDevices("Emulated");
+                        StoreSavedNetworkSettingsToEmulatedDevices();
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.Print("Store changed settings " + e.ToString());
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.Print(e.ToString());
+                throw;
+            }
+        }
 
         protected virtual void Finish()
         {
