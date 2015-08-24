@@ -491,7 +491,7 @@ namespace xenwinsvc
             IntPtr consoletoken;
             void getConsoleAndSpawn()
             {
-                if (running)
+                if (running && !FeatureAutoUpdate.IsUpdating())
                 {
                     try {
                         session = Win32Impl.WTSGetActiveConsoleSessionId();

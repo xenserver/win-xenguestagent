@@ -241,6 +241,7 @@ namespace xenwinsvc
                 Refresher.Add(new NetInfo(this));
                 Refresher.Add(new VolumeInfo());
                 Refresher.Add(new MemoryInfo());
+                Refresher.Add(new FeatureAutoUpdate(this));
 
                 wmisession.Log("About to add handlers ");
                 clipboardhandler = new ClipboardManager(this);
