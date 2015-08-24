@@ -47,7 +47,7 @@ namespace xenwinsvc
     
     public class FeatureAutoUpdate : Feature, IRefresh
     {
-        const string MSI_URL = "http://10.80.239.142/";
+        const string MSI_URL = "http://127.0.0.1/";
         static volatile Thread autoUpdateThread = null;
         static object threadlock = new object();
         static bool stopping = false;
