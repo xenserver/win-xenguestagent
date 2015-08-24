@@ -98,6 +98,7 @@ namespace xenwinsvc
             bool needUpdate = false;
             if (downloadURLKey.Exists())
                 downloadURL = downloadURLKey.value;
+            wmisession.Log("download MSI from: " + downloadURL);
             WebClient client = new WebClient();
             string content = client.DownloadString(downloadURL);
             
@@ -127,9 +128,8 @@ namespace xenwinsvc
 
                             Version newVersion = new Version(newMajor, newMinor, newMicro, newBuild);
                             Version oldVersion = new Version(major, minor, micro, build);
-                            wmisession.Log("onFeature: doAgentAutoUpdate \n" + filename);
-                            wmisession.Log("newVersion " + newVersion.ToString());
-                            wmisession.Log("Version " + oldVersion.ToString());
+                            wmisession.Log("New guest agent Version " + newVersion.ToString());
+                            wmisession.Log("Current guest agent Version " + oldVersion.ToString());
                             if (newVersion.CompareTo(oldVersion) > 0)
                                 needUpdate = true;
                         }
@@ -221,17 +221,26 @@ namespace xenwinsvc
         }
 
         public FeatureAutoUpdate(IExceptionHandler exceptionhandler)
-            : base("autoUpdate", "", "control/auto-update-agent", true, exceptionhandler)
+            : base("autoUpdate", "", "/guest_agent_features/Guest_agent_auto_update/parameters/enabled", true, exceptionhandler)
         {
-            downloadURLKey = wmisession.GetXenStoreItem("control/downloadURL");
+            downloadURLKey = wmisession.GetXenStoreItem("/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
         }
 
         volatile bool featureEnable = false;
         override protected void onFeature()
         {
+            if (!FeatureLicensed.IsLicensed())
+            {
+                featureEnable = false;
+                return;
+            }
+
             int DisableAutoUpdate = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0));
             if (DisableAutoUpdate == 1)
+            {
+                featureEnable = false;
                 return;
+            }
 
             int enableval = 0;
             if (controlKey.Exists())
@@ -270,6 +279,9 @@ namespace xenwinsvc
 
         bool xenwinsvc.IRefresh.NeedsRefresh()
         {
+            if (!FeatureLicensed.IsLicensed())
+                return false;
+
             return featureEnable && NeedsRefresh();
         }
 

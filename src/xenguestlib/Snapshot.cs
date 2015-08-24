@@ -475,14 +475,14 @@ namespace xenwinsvc
         volatile bool licensed = false;
         bool xenwinsvc.IRefresh.NeedsRefresh()
         {
-            if (licensed != FeatureLicensed.IsLicensed())
+            if (licensed != FeatureVSSLicensed.IsLicensed())
                 return true;
             
             return false;
         }
         bool xenwinsvc.IRefresh.Refresh(bool force)
         {
-            licensed = FeatureLicensed.IsLicensed();
+            licensed = FeatureVSSLicensed.IsLicensed();
             featureKey.value = licensed ? "1" : "0";
             return true;
         }

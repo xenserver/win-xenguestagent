@@ -217,6 +217,7 @@ namespace xenwinsvc
                 
                 wmisession.Log("About to run features");
                 new FeatureLicensed(this);
+                new FeatureVSSLicensed(this);
                 new FeatureDumpLog(this);
                 new FeatureGC(this);
                 new FeaturePing(this);
