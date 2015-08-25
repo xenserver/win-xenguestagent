@@ -91,13 +91,27 @@ namespace xenwinsvc
 
         XenStoreItem downloadURLKey;
 
+        string getDownloadURL()
+        {
+            string downloadURL = MSI_URL;
+            if (downloadURLKey.Exists())
+                downloadURL = downloadURLKey.value;
+            try
+            {
+                string regURL = ((string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", null));
+                if (!string.IsNullOrEmpty(regURL))
+                    downloadURL = regURL;
+            }
+            catch
+            {}
+            return downloadURL;
+        }
+
         string downloadMSI()
         {
             Regex regex = new Regex("<a href=\".*\">(?<name>.*)</a>");
-            string downloadURL = MSI_URL;
             bool needUpdate = false;
-            if (downloadURLKey.Exists())
-                downloadURL = downloadURLKey.value;
+            string downloadURL = getDownloadURL();
             wmisession.Log("download MSI from: " + downloadURL);
             WebClient client = new WebClient();
             string content = client.DownloadString(downloadURL);
@@ -156,7 +170,10 @@ namespace xenwinsvc
                 if (VerifyCertificate(msi))
                     return msi;
                 else
+                {
+                    wmisession.Log("Will not install the update since it is not sign by Citrix");
                     return null;
+                }
             }
             else
                 return null;
