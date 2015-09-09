@@ -45,6 +45,7 @@
     <Compile Include="..\..\src\xenguestlib\AutoUpdate.cs" />
     <Compile Include="..\..\src\xenguestlib\Clipboard.cs" />
     <Compile Include="..\..\src\xenguestlib\Communicator.cs" />
+    <Compile Include="..\..\src\xenguestlib\EventLogger.cs" />
     <Compile Include="..\..\src\xenguestlib\Features.cs" />
     <Compile Include="..\..\src\xenguestlib\MemoryInfo.cs" />
     <Compile Include="..\..\src\xenguestlib\NetInfo.cs" />
