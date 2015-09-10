@@ -50,6 +50,7 @@ namespace xenwinsvc
         static volatile Thread autoUpdateThread = null;
         static object threadlock = new object();
         static bool stopping = false;
+        EventLogger logger;
         
         public static void JoinAutoUpdate()
         {
@@ -170,7 +171,7 @@ namespace xenwinsvc
                     return msi;
                 else
                 {
-                    EventLogger.addEvent("Will not install the update since it is not signed by Citrix");
+                    logger.addEvent("Will not install the update since it is not signed by Citrix");
                     return null;
                 }
             }
@@ -209,12 +210,12 @@ namespace xenwinsvc
                     process.Kill();
                 }
                 wmisession.Log("install update with:" + startInfo.Arguments);
-                EventLogger.addEvent("Start to upgrade Citrix Guest Agent");
+                logger.addEvent("Start to upgrade Citrix Guest Agent");
                 Process newprocess = Process.Start(startInfo);
             }
             catch (Exception exp)
             {
-                EventLogger.addException(exp.Message);
+                logger.addException(exp.Message);
             }
         }
 
@@ -247,6 +248,7 @@ namespace xenwinsvc
         public FeatureAutoUpdate(IExceptionHandler exceptionhandler)
             : base("autoUpdate", "", "/guest_agent_features/Guest_agent_auto_update/parameters/enabled", true, exceptionhandler)
         {
+            logger = new EventLogger(wmisession);
             downloadURLKey = wmisession.GetXenStoreItem("/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
         }
 

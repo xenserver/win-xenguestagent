@@ -5,9 +5,11 @@ namespace xenwinsvc
 {
     public class EventLogger
     {
-        static EventLog el;
-        static EventLogger()
+        EventLog el;
+        protected WmiSession wmisession;
+        public EventLogger(WmiSession wmisession)
         {
+            this.wmisession = wmisession;
             el = new EventLog();
             el.Source = "XenGuestAgent";
             if (!EventLog.SourceExists("XenGuestAgent"))
@@ -17,21 +19,24 @@ namespace xenwinsvc
             }
         }
 
-        public static void addEvent(string message)
+        public void addEvent(string message)
         {
             //Log Information  
+            wmisession.Log(message);
             el.WriteEntry(message, EventLogEntryType.Information);
         }
 
-        public static void addException(string message)
+        public void addException(string message)
         {
             //Log Exception  
+            wmisession.Log(message);
             el.WriteEntry(message, EventLogEntryType.Error);
         }
 
-        public static void addWarning(string message)
+        public void addWarning(string message)
         {
-            //Log Warning  
+            //Log Warning
+            wmisession.Log(message);
             el.WriteEntry(message, EventLogEntryType.Warning);
         }
     }
