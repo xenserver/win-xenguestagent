@@ -44,13 +44,13 @@ using System.Collections.Generic;
 
 namespace xenwinsvc
 {
-    
     public class FeatureAutoUpdate : Feature, IRefresh
     {
         const string MSI_URL = "http://127.0.0.1/";
         static volatile Thread autoUpdateThread = null;
         static object threadlock = new object();
         static bool stopping = false;
+        EventLogger logger;
         
         public static void JoinAutoUpdate()
         {
@@ -166,12 +166,12 @@ namespace xenwinsvc
                 if (File.Exists(msi))
                     File.Delete(msi);
                 client.DownloadFile(new Uri(msiURL), msi);
-                wmisession.Log("downloadMSI:" + downloadURL + " successful");
+                wmisession.Log("downloadMSI from " + msiURL + " to " + msi + " completed");
                 if (VerifyCertificate(msi))
                     return msi;
                 else
                 {
-                    wmisession.Log("Will not install the update since it is not sign by Citrix");
+                    logger.addEvent("Will not install the update since it is not signed by Citrix");
                     return null;
                 }
             }
@@ -181,34 +181,42 @@ namespace xenwinsvc
 
         void autoUpdateHandler()
         {
-            string msiName = downloadMSI();
-            string installdir;
-            if (string.IsNullOrEmpty(msiName))
-                return;
-            
-            if (Win32Impl.is64BitOS())
-                installdir = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Citrix\\XenToolsInstaller", "Install_Dir", Application.StartupPath);
-            else
-                installdir = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenToolsInstaller", "Install_Dir", Application.StartupPath);
-            
-            string logfile = "\"" + installdir + "\\" + "agent3msi" + "\"";
-            installdir = "\"" + installdir + "\"";
-            
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = "msiexec.exe";
-            startInfo.CreateNoWindow = true;
-            startInfo.UseShellExecute = false;
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-
-            startInfo.Arguments = " /i " + msiName + " TARGETDIR=" + installdir + " /log " + logfile + " /qn";            
-            isUpdating = true;
-            foreach (var process in Process.GetProcessesByName("XenDpriv.exe"))
+            try
             {
-                process.Kill();
+                string msiName = downloadMSI();
+                string installdir;
+                if (string.IsNullOrEmpty(msiName))
+                    return;
+
+                if (Win32Impl.is64BitOS())
+                    installdir = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Citrix\\XenToolsInstaller", "Install_Dir", Application.StartupPath);
+                else
+                    installdir = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenToolsInstaller", "Install_Dir", Application.StartupPath);
+
+                string logfile = "\"" + installdir + "\\" + "agent3msi" + "\"";
+                installdir = "\"" + installdir + "\"";
+
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.FileName = "msiexec.exe";
+                startInfo.CreateNoWindow = true;
+                startInfo.UseShellExecute = false;
+                startInfo.RedirectStandardError = true;
+                startInfo.RedirectStandardOutput = true;
+
+                startInfo.Arguments = " /i " + msiName + " TARGETDIR=" + installdir + " /log " + logfile + " /qn";
+                isUpdating = true;
+                foreach (var process in Process.GetProcessesByName("XenDpriv.exe"))
+                {
+                    process.Kill();
+                }
+                wmisession.Log("install update with:" + startInfo.Arguments);
+                logger.addEvent("Start to upgrade Citrix Guest Agent");
+                Process newprocess = Process.Start(startInfo);
             }
-            wmisession.Log("install update with:" + startInfo.Arguments);
-            Process newprocess = Process.Start(startInfo);
+            catch (Exception exp)
+            {
+                logger.addException(exp.Message);
+            }
         }
 
         void doAutoUpdate()
@@ -240,6 +248,7 @@ namespace xenwinsvc
         public FeatureAutoUpdate(IExceptionHandler exceptionhandler)
             : base("autoUpdate", "", "/guest_agent_features/Guest_agent_auto_update/parameters/enabled", true, exceptionhandler)
         {
+            logger = new EventLogger(wmisession);
             downloadURLKey = wmisession.GetXenStoreItem("/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
         }
 
