@@ -729,6 +729,7 @@ namespace xenwinsvc
         void runCommand(string batchfile)
         {
             string tmpDir = System.IO.Path.GetRandomFileName();
+            int availBytes;
 
             stderrStr = "";
             stdoutStr = "";
@@ -774,7 +775,8 @@ namespace xenwinsvc
                             {
                                 lock (stdoutStr)
                                 {
-                                    stdoutStr += outline.Data;
+                                    availBytes = MAXLENGTH - stdoutStr.Length;
+                                    stdoutStr += (availBytes >= outline.Data.Length) ? outline.Data : outline.Data.Substring(0, availBytes);
                                 }
                             }
                         };
@@ -785,7 +787,8 @@ namespace xenwinsvc
                             {
                                 lock (stderrStr)
                                 {
-                                    stderrStr += outline.Data;
+                                    availBytes = MAXLENGTH - stderrStr.Length;
+                                    stderrStr += (availBytes >= outline.Data.Length) ? outline.Data : outline.Data.Substring(0, availBytes);
                                 }
                             }
                         };
