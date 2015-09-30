@@ -246,7 +246,7 @@ namespace xenwinsvc
         }
 
         public FeatureAutoUpdate(IExceptionHandler exceptionhandler)
-            : base("autoUpdate", "", "/guest_agent_features/Guest_agent_auto_update/parameters/enabled", true, exceptionhandler)
+            : base("autoUpdate", "", "/guest_agent_features/Guest_agent_auto_update/parameters/enabled", false, exceptionhandler)
         {
             logger = new EventLogger(wmisession);
             downloadURLKey = wmisession.GetXenStoreItem("/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
@@ -269,6 +269,11 @@ namespace xenwinsvc
             }
 
             int enableval = 0;
+            int major = (int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0);
+            int minor = (int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0);
+            //The auto update feature will set as enable by default for version later than 6.5
+            if (major > 6 || (major == 6 && minor > 5))
+                enableval = 1;
             if (controlKey.Exists())
             {
                 try
