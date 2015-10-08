@@ -104,79 +104,102 @@ namespace xenwinsvc
             }
             catch
             {}
+            if (!string.IsNullOrEmpty(downloadURL))
+            {
+                if (downloadURL[downloadURL.Length - 1] != '/')
+                    downloadURL += '/';
+            }
             return downloadURL;
         }
 
         string downloadMSI()
         {
-            Regex regex = new Regex("<a href=\".*\">(?<name>.*)</a>");
-            bool needUpdate = false;
-            string downloadURL = getDownloadURL();
-            wmisession.Log("download MSI from: " + downloadURL);
-            WebClient client = new WebClient();
-            string content = client.DownloadString(downloadURL);
-            
-            MatchCollection matches = regex.Matches(content);
-            string version_prefix = "version_";
-            if (matches.Count > 0)
+            try
             {
-                foreach (Match match in matches)
-                {
-                    if (match.Success)
-                    {
-                        string filename = match.Groups["name"].ToString();
-                        if (filename.StartsWith(version_prefix))
-                        {
-                            string version = filename.Substring(version_prefix.Length);
-                            List<string> versionArray = new List<string>(version.Split('.'));
-                            if (versionArray.Count < 4)
-                                return null;
-                            int newMajor = Convert.ToInt32(versionArray[0]);
-                            int newMinor = Convert.ToInt32(versionArray[1]);
-                            int newMicro = Convert.ToInt32(versionArray[2]);
-                            int newBuild = Convert.ToInt32(versionArray[3]);
-                            int major = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0));
-                            int minor = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0));
-                            int micro = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MicroVersion", 0));
-                            int build = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "BuildVersion", 0));
+                Regex regex = new Regex("<a href=\".*\">(?<name>.*)</a>");
+                bool needUpdate = false;
+                string downloadURL = getDownloadURL();
+                wmisession.Log("download MSI from: " + downloadURL);
+                WebClient client = new WebClient();
+                string content = client.DownloadString(downloadURL);
 
-                            Version newVersion = new Version(newMajor, newMinor, newMicro, newBuild);
-                            Version oldVersion = new Version(major, minor, micro, build);
-                            wmisession.Log("New guest agent Version " + newVersion.ToString());
-                            wmisession.Log("Current guest agent Version " + oldVersion.ToString());
-                            if (newVersion.CompareTo(oldVersion) > 0)
-                                needUpdate = true;
+                MatchCollection matches = regex.Matches(content);
+                string version_prefix = "version_";
+                if (matches.Count > 0)
+                {
+                    foreach (Match match in matches)
+                    {
+                        if (match.Success)
+                        {
+                            string filename = match.Groups["name"].ToString();
+                            if (filename.StartsWith(version_prefix))
+                            {
+                                string version = filename.Substring(version_prefix.Length);
+                                List<string> versionArray = new List<string>(version.Split('.'));
+                                if (versionArray.Count < 4)
+                                    return null;
+                                int newMajor = Convert.ToInt32(versionArray[0]);
+                                int newMinor = Convert.ToInt32(versionArray[1]);
+                                int newMicro = Convert.ToInt32(versionArray[2]);
+                                int newBuild = Convert.ToInt32(versionArray[3]);
+                                int major = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0));
+                                int minor = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0));
+                                int micro = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MicroVersion", 0));
+                                int build = ((int)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "BuildVersion", 0));
+
+                                Version newVersion = new Version(newMajor, newMinor, newMicro, newBuild);
+                                Version oldVersion = new Version(major, minor, micro, build);
+                                wmisession.Log("New guest agent Version " + newVersion.ToString());
+                                wmisession.Log("Current guest agent Version " + oldVersion.ToString());
+                                if (newVersion.CompareTo(oldVersion) > 0)
+                                    needUpdate = true;
+                            }
                         }
                     }
                 }
-            }
 
-            if (needUpdate)
-            {
-                string msiName;
-                if (Win32Impl.is64BitOS() && (!Win32Impl.isWOW64()))
-                    msiName = "citrixguestagentx64.msi";
-                else
-                    msiName = "citrixguestagentx86.msi";
-
-                string msiURL = downloadURL + msiName;
-
-
-                string msi = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\" + msiName;
-                if (File.Exists(msi))
-                    File.Delete(msi);
-                client.DownloadFile(new Uri(msiURL), msi);
-                wmisession.Log("downloadMSI from " + msiURL + " to " + msi + " completed");
-                if (VerifyCertificate(msi))
-                    return msi;
-                else
+                if (needUpdate)
                 {
-                    logger.addEvent("Will not install the update since it is not signed by Citrix");
-                    return null;
+                    string msiName;
+                    if (Win32Impl.is64BitOS() && (!Win32Impl.isWOW64()))
+                        msiName = "citrixguestagentx64.msi";
+                    else
+                        msiName = "citrixguestagentx86.msi";
+
+                    string msiURL = downloadURL + msiName;
+
+
+                    string msi = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\" + msiName;
+                    if (File.Exists(msi))
+                        File.Delete(msi);
+                    client.DownloadFile(new Uri(msiURL), msi);
+                    wmisession.Log("downloadMSI from " + msiURL + " to " + msi + " completed");
+                    if (VerifyCertificate(msi))
+                        return msi;
+                    else
+                    {
+                        logger.addEvent("Will not install the update since it is not signed by Citrix");
+                        return null;
+                    }
                 }
+                else
+                    return null;
             }
-            else
+            catch (ArgumentException)
+            {
+                wmisession.Log("Image URL can not be an empty string");
                 return null;
+            }
+            catch (WebException)
+            {
+                wmisession.Log("Image URL is invalid.");
+                return null;
+            }
+            catch (Exception e)
+            {
+                wmisession.Log(e.Message);
+                return null;
+            }
         }
 
         void autoUpdateHandler()
