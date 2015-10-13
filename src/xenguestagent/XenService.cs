@@ -35,6 +35,7 @@ using System.Threading;
 using System.Management;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using Microsoft.VisualBasic;
 using System.Configuration.Install;
 using System.Reflection;
 using XenGuestLib;
@@ -50,16 +51,56 @@ using XenGuestLib;
 
 namespace xenwinsvc
 {
+    class TimeDateTraceListener : Microsoft.VisualBasic.Logging.FileLogTraceListener
+    {
+        public TimeDateTraceListener(String name)
+            : base(name)
+        {
+            Debug.Print("TD Trace");
+            base.Append = true;
+            base.AutoFlush = true;
+            base.MaxFileSize = 1024 * 1024;
+            base.LogFileCreationSchedule = Microsoft.VisualBasic.Logging.LogFileCreationScheduleOption.Daily;
+            base.Location = Microsoft.VisualBasic.Logging.LogFileLocation.Custom;
+            System.IO.Directory.CreateDirectory(Application.CommonAppDataPath);
+            base.CustomLocation = Application.CommonAppDataPath;
+            Debug.Print("Log location " + base.CustomLocation);
 
+        }
+
+        public override void WriteLine(object o)
+        {
+            base.WriteLine(DateTime.Now.ToString() +" : " + o.ToString());
+        }
+        public override void WriteLine(string message)
+        {
+            base.WriteLine(DateTime.Now.ToString() +" : " + message);
+        }
+    }
+        
+       /* protected override void OnStart(string[] args)
+        {
+            // Start thread - so we can do everything in the background
+            TextWriterTraceListener tlog = new TimeDateTraceListener(Application.CommonAppDataPath + "\\GuestData.log", "GuestData");
+            Trace.Listeners.Add(tlog);
+            Trace.AutoFlush = true;
+            Trace.WriteLine("OnStart");  
+            InstallState = new InstallerState();
+            installthread = new Thread(InstallThreadHandler);
+            installthread.Start();
+            
+        }*/
 
     class XenService : System.ServiceProcess.ServiceBase, IExceptionHandler
     {
 
-
+        TimeDateTraceListener tlog;
         public XenService()
         {
      
             Debug.Print("XenService Init");
+            tlog = new TimeDateTraceListener("guest");
+            Trace.Listeners.Add(tlog); Trace.WriteLine("This is all");
             this.ServiceName = "Citrix Xen Guest Agent";
             this.CanStop = true;
             this.CanHandleSessionChangeEvent = true;

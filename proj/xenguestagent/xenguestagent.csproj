@@ -44,9 +44,10 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-      <CopyOut Include="..\..\src\xenguestagent\XenGuestAgent.exe.config"/>
+    <CopyOut Include="..\..\src\xenguestagent\XenGuestAgent.exe.config" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.configuration" />
@@ -66,10 +67,10 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="MyCopyFilesToOutputDirectory">
-      <Copy SourceFiles="@(CopyOut)" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="@(CopyOut)" DestinationFolder="$(OutDir)" />
   </Target>
   <PropertyGroup>
-      <PrepareForRunDependsOn>$(PrepareForRunDependsOn);MyCopyFilesToOutputDirectory</PrepareForRunDependsOn>
+    <PrepareForRunDependsOn>$(PrepareForRunDependsOn);MyCopyFilesToOutputDirectory</PrepareForRunDependsOn>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
