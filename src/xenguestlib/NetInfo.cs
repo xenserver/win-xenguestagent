@@ -253,7 +253,8 @@ namespace xenwinsvc
         const string ENUM = @"SYSTEM\CurrentControlSet\Enum\";
         const string CONTROL = @"SYSTEM\CurrentControlSet\Control\";
         const string CLASS = CONTROL+@"Class\";
-        const string NETWORKDEVICE = CLASS+@"{4D36E972-E325-11CE-BFC1-08002BE10318}";
+        const string NETWORKUUID = @"{4D36E972-E325-11CE-BFC1-08002BE10318}";
+        const string NETWORKDEVICE = CLASS+NETWORKUUID+@"\";
         const string TCPIPSRV = @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
         const string TCPIP6SRV = @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces";
         const string NETBTSRV = @"SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces";
@@ -264,7 +265,7 @@ namespace xenwinsvc
         const string STATICIPV4 = NSI + @"{eb004a00-9b1a-11d4-9123-0050047759bc}\10\";
         const string STATICIPV6 = NSI + @"{eb004a01-9b1a-11d4-9123-0050047759bc}\10\";
 
-        static RegistryKey FindClassDeviceKeyForNetCfgInstanceId(string NetCfgInstanceId)
+        static string FindClassDeviceKeyNameForNetCfgInstanceId(string NetCfgInstanceId)
         {
             using (RegistryKey netdevkey = Registry.LocalMachine.OpenSubKey(NETWORKDEVICE))
             {
@@ -272,20 +273,39 @@ namespace xenwinsvc
                 {
                     try
                     {
-                        RegistryKey devicekey = netdevkey.OpenSubKey(keyname);
-                        
-                        if (((string)devicekey.GetValue("NetCfgInstanceId")).Equals(NetCfgInstanceId))
-                        {
-                            return devicekey;
-                        }
-                        else {
-                            devicekey.Close();
+                        using (RegistryKey devicekey = netdevkey.OpenSubKey(keyname)) {
+                            if (((string)devicekey.GetValue("NetCfgInstanceId")).Equals(NetCfgInstanceId))
+                            {
+                                return keyname;
+                            }
                         }
                     }
-                    catch{}
+                    catch {}
                 }
             }
+            throw new Exception("Unable to find Class Device Key Name for NefCfgInstance");
+
+        }
+
+        static RegistryKey FindClassDeviceKeyForNetCfgInstanceId(string NetCfgInstanceId)
+        {
+            using (RegistryKey netdevkey = Registry.LocalMachine.OpenSubKey(NETWORKDEVICE))
+            {
+                RegistryKey devicekey = netdevkey.OpenSubKey(FindClassDeviceKeyNameForNetCfgInstanceId(NetCfgInstanceId));
+                if (((string)devicekey.GetValue("NetCfgInstanceId")).Equals(NetCfgInstanceId))
+                {
+                    return devicekey;
+                }
+                else {
+                    devicekey.Close();
+                }
+             }
             throw new Exception("Unable to find Class Device Key for Mac");
+        }
+
+        static string FindClassDeviceNameForNetCfgInstanceId(string NetCfgInstanceId)
+        {
+            return NETWORKUUID+@"\"+FindClassDeviceKeyNameForNetCfgInstanceId(NetCfgInstanceId);
         }
 
         static string GetMacStrFromPhysical(PhysicalAddress pa)
@@ -357,7 +377,8 @@ namespace xenwinsvc
         }
 
         public static void RecordDevices(string type)
-        { 
+        {
+            Trace.WriteLine("NETINFO Record " + type);
             NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
             foreach (NetworkInterface nic in nics)
             {
@@ -365,26 +386,75 @@ namespace xenwinsvc
                 {
                     PhysicalAddress pa = nic.GetPhysicalAddress();
                     string NetCfgInstanceId = nic.Id;
-                    
-
-                    using (RegistryKey netsetstorekey = Registry.LocalMachine.OpenSubKey(NETSETTINGSSTORE, true))
+                    Trace.WriteLine("ID = " + NetCfgInstanceId);
+                    try
                     {
-                        using (RegistryKey emulatedkey = netsetstorekey.CreateSubKey(type))
+                        using (RegistryKey netsetstorekey = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE))
                         {
-                            using(RegistryKey devicekey = FindClassDeviceKeyForNetCfgInstanceId(NetCfgInstanceId)){
-                                try
+                            using (RegistryKey emulatedkey = netsetstorekey.CreateSubKey(type))
+                            {
+                                string classname = FindClassDeviceNameForNetCfgInstanceId(NetCfgInstanceId);
+
+                                using (RegistryKey enumkey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum"))
                                 {
-                                    string driverkey = (string)devicekey.GetValue("DeviceInstanceId");
-                                    emulatedkey.SetValue(GetMacStrFromPhysical(pa), driverkey);
+                                    foreach (string bus in enumkey.GetSubKeyNames())
+                                      using (RegistryKey buskey = enumkey.OpenSubKey(bus))
+                                    {
+                                        foreach (string busdriver in buskey.GetSubKeyNames())
+                                          using (RegistryKey busdriverkey = buskey.OpenSubKey(busdriver))
+                                        {
+                                            foreach (string busdriverdevice in busdriverkey.GetSubKeyNames())
+                                              using (RegistryKey busdriverdevicekey = busdriverkey.OpenSubKey(busdriverdevice))
+                                            {
+                                                try
+                                                {
+                                                    string driver = (string)busdriverdevicekey.GetValue("Driver");
+                                                    if (driver.Equals(classname, StringComparison.InvariantCultureIgnoreCase))
+                                                    {
+                                                        Trace.WriteLine("NETINFO Record " + pa.ToString());
+                                                        emulatedkey.SetValue(GetMacStrFromPhysical(pa), bus+"\\"+busdriver+"\\"+busdriverdevice);
+                                                    }
+                                                }
+                                                catch
+                                                {
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                                catch (Exception e)
-                                {
-                                    Debug.Print(e.ToString());
-                                }
-                           }
+
+
+                                /*Trace.WriteLine("Class device device " + classname);
+                                using (RegistryKey classkey  = Registry.LocalMachine.OpenSubKey(CLASS+classname)){
+                                    string devname = (string)classkey.GetValue("MatchingDeviceId");
+                                    Trace.WriteLine("Found device " + devname);
+                                    using (RegistryKey devicekey = Registry.LocalMachine.OpenSubKey(ENUM+devname))
+                                    {
+                                        Trace.WriteLine("Opened");
+                                        foreach (string id in devicekey.GetSubKeyNames())
+                                        {
+                                            Trace.WriteLine("checkid " + id);
+                                            using (RegistryKey instancekey = devicekey.OpenSubKey(id))
+                                            {
+                                                string driver = (string)instancekey.GetValue("Driver");
+                                                Trace.WriteLine("Check driver" + driver);
+                                                if (driver.Equals(classname,StringComparison.InvariantCultureIgnoreCase))
+                                                {
+                                                    Trace.WriteLine("NETINFO Record " + pa.ToString());
+                                                    emulatedkey.SetValue(GetMacStrFromPhysical(pa), devname+"\\"+id);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }*/
+                            }
                         }
                     }
-                }                
+                    catch
+                    {
+                        Trace.WriteLine("No stored settings");
+                    }
+                }
             }
         }
 
@@ -504,6 +574,7 @@ namespace xenwinsvc
 
         private static void StorePVNetworkSettingsToEmulatedDevicesOrSave()
         {
+            Trace.WriteLine("NETINFO StorePVNetworkSettingsToEmulatedDevicesOrSave");
             using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
             using (RegistryKey pvstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\PV"))
             {
@@ -518,6 +589,7 @@ namespace xenwinsvc
                         {
                             if (pvstore.GetValueNames().Contains(matchmac))
                             {
+                                Trace.WriteLine("NETINFO Match " + pa.ToString());
                                 string SrcNetCfgInstanceId;
                                 string DestNetCfgInstanceId;
                                 string DestNetLuidMatchStr;
@@ -549,13 +621,14 @@ namespace xenwinsvc
                         {
 
                             Debug.Print("MAC " + matchmac);
+                            Trace.WriteLine("NETINFO Save "+pa.ToString());
                             if (pvstore.GetValueNames().Contains(matchmac))
                             {
                                 string SrcNetLuidMatchStr;
                                 Debug.Print("Got");
                                 string SrcNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)pvstore.GetValue(matchmac));
                                 Debug.Print("NetCfg" + SrcNetCfgInstanceId);
-                                using (RegistryKey macstore = Registry.LocalMachine.OpenSubKey(NETSETTINGSSTORE + @"\Mac", true))
+                                using (RegistryKey macstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Mac"))
                                 {
                                     Debug.Print("Found mac");
                                     using (RegistryKey ifacekey = macstore.CreateSubKey(matchmac))
@@ -584,6 +657,7 @@ namespace xenwinsvc
 
         private static void StoreSavedNetworkSettingsToEmulatedDevices()
         {
+            Trace.WriteLine("NETINFO StoreSavedNetworkSettingsToEmulatedDevices");
             using (RegistryKey macstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE+@"\Mac"))
             using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
             {
@@ -605,6 +679,7 @@ namespace xenwinsvc
                                 {
                                     continue;
                                 }
+                                Trace.WriteLine("NETINFO Store " + macaddr);
                                 FromStoreToServiceIface(ifacekey, NetCfgInstanceId);
                             }
                             else {
@@ -643,8 +718,18 @@ namespace xenwinsvc
         {
             try
             {
-                ServiceController sc = new ServiceController("XenNet");
-                if (sc.Status == ServiceControllerStatus.Running)
+                ServiceController sc = null;
+                ServiceControllerStatus status=ServiceControllerStatus.Stopped;
+                try
+                {
+                    sc= new ServiceController("XenNet");
+                    status = sc.Status;
+                }
+                catch {
+                    sc = null;
+                }
+
+                if ( (sc != null) && (status == ServiceControllerStatus.Running))
                 {
                     RecordDevices("PV");
                     StorePVNetworkSettingsToEmulatedDevicesOrSave();
@@ -662,6 +747,7 @@ namespace xenwinsvc
                         Debug.Print("Store changed settings " + e.ToString());
                     }
                 }
+ 
             }
             catch (Exception e)
             {
