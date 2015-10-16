@@ -309,11 +309,15 @@ namespace xenwinsvc
                 }
             }
             refreshCount = 0;
-            featureEnable = enableval != 0 ? true : false;
-            if (featureEnable)
+            bool newValue = enableval != 0 ? true : false;
+            if (featureEnable != newValue)
             {
-                wmisession.Log("onFeature: doAgentAutoUpdate \n");
-                doAutoUpdate();
+                featureEnable = newValue;
+                if (featureEnable)
+                {
+                    wmisession.Log("onFeature: doAgentAutoUpdate \n");
+                    doAutoUpdate();
+                }
             }
         }
         //do update check after start
