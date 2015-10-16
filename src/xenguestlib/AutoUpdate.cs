@@ -91,6 +91,26 @@ namespace xenwinsvc
 
         XenStoreItem downloadURLKey;
 
+        string getFinalRedirectedUrl(string url)
+        {
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            req.Method = "HEAD";
+            req.AllowAutoRedirect = false;
+            HttpWebResponse myResp = (HttpWebResponse)req.GetResponse();
+            switch (myResp.StatusCode)
+            {
+                case HttpStatusCode.Redirect:
+                case HttpStatusCode.MovedPermanently:
+                case HttpStatusCode.RedirectKeepVerb:
+                case HttpStatusCode.RedirectMethod:
+                    string urlNew = myResp.GetResponseHeader("Location");
+                    wmisession.Log("redirect url from: " + url + " to " + urlNew);
+                    return getFinalRedirectedUrl(urlNew);
+                default:
+                    return url;
+            }
+        }
+
         string getDownloadURL()
         {
             string downloadURL = MSI_URL;
@@ -104,6 +124,8 @@ namespace xenwinsvc
             }
             catch
             {}
+
+            downloadURL = getFinalRedirectedUrl(downloadURL);
             if (!string.IsNullOrEmpty(downloadURL))
             {
                 if (downloadURL[downloadURL.Length - 1] != '/')
@@ -185,14 +207,14 @@ namespace xenwinsvc
                 else
                     return null;
             }
-            catch (ArgumentException)
+            catch (ArgumentException exp)
             {
-                wmisession.Log("Image URL can not be an empty string");
+                wmisession.Log("Image URL can not be an empty string" + exp.ToString());
                 return null;
             }
-            catch (WebException)
+            catch (WebException exp)
             {
-                wmisession.Log("Image URL is invalid.");
+                wmisession.Log("Image URL is invalid." + exp.ToString());
                 return null;
             }
             catch (Exception e)
