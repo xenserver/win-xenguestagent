@@ -46,7 +46,7 @@ namespace xenwinsvc
 {
     public class FeatureAutoUpdate : Feature, IRefresh
     {
-        const string MSI_URL = "http://127.0.0.1/";
+        const string MSI_URL = "http://updates.vmd.citrix.com/XenServer/WinGuestAgent/Latest/";
         static volatile Thread autoUpdateThread = null;
         static object threadlock = new object();
         static bool stopping = false;
@@ -184,9 +184,9 @@ namespace xenwinsvc
                 {
                     string msiName;
                     if (Win32Impl.is64BitOS() && (!Win32Impl.isWOW64()))
-                        msiName = "citrixguestagentx64.msi";
+                        msiName = "managementagentx64.msi";
                     else
-                        msiName = "citrixguestagentx86.msi";
+                        msiName = "managementagentx86.msi";
 
                     string msiURL = downloadURL + msiName;
 
