@@ -185,7 +185,7 @@ namespace xenwinsvc
         {
             private StringBuilder errormessage;
             public String message;
-            public String code;
+            public long code;
             public String state;
             private StringBuilder allocMessage(int size)
             {
@@ -195,9 +195,9 @@ namespace xenwinsvc
             public VssSnapshotException(IntPtr client) : base()
             {
                 VssGetErrorMessage(client, allocMessage);
-                code = VssGetErrorCode(client).ToString();
+                code = (long)VssGetErrorCode(client);
                 state = VssGetErrorState(client).ToString();
-                message = errormessage.ToString()+" code "+VssGetErrorCode(client).ToString();
+                message = errormessage.ToString() + " code " + code.ToString();
             }
             public VssSnapshotException()
                 : base()
@@ -388,6 +388,52 @@ namespace xenwinsvc
             return list;
         }
 
+        private enum HRESULT : long
+        {
+            S_OK = 0x00000000,
+            S_FALSE = 0x00000001,
+            // VSS Info/Success
+            VSS_S_ASYNC_PENDING = 0x42309,
+            VSS_S_ASYNC_FINISHED = 0x4230A,
+            VSS_S_ASYNC_CANCELLED = 0x4230B,
+            VSS_S_SOME_SNAPSHOTS_NOT_IMPORTED = 0x42320,
+            // VSS Errors
+            VSS_E_BAD_STATE = 0x80042301,
+            VSS_E_PROVIDER_ALREADY_REGISTERED = 0x80042303,
+            VSS_E_PROVIDER_NOT_REGISTERED = 0x80042304,
+            VSS_E_PROVIDER_VETO = 0x80042306,
+            VSS_E_PROVIDER_IN_USE = 0x80042307,
+            VSS_E_OBJECT_NOT_FOUND = 0x80042308,
+            VSS_E_VOLUME_NOT_SUPPORTED = 0x8004230C,
+            VSS_E_VOLUME_NOT_SUPPORTED_BY_PROVIDER = 0x8004230E,
+            VSS_E_OBJECT_ALREADY_EXISTS = 0x8004230D,
+            VSS_E_UNEXPECTED_PROVIDER_ERROR = 0x8004230F,
+            VSS_E_CORRUPT_XML_DOCUMENT = 0x80042310,
+            VSS_E_INVALID_XML_DOCUMENT = 0x80042311,
+            VSS_E_MAXIMUM_NUMBER_OF_VOLUMES_REACHED = 0x80042312,
+            VSS_E_FLUSH_WRITES_TIMEOUT = 0x80042313,
+            VSS_E_HOLD_WRITES_TIMEOUT = 0x80042314,
+            VSS_E_UNEXPECTED_WRITER_ERROR = 0x80042315,
+            VSS_E_SNAPSHOT_SET_IN_PROGRESS = 0x80042316,
+            VSS_E_MAXIMUM_NUMBER_OF_SNAPSHOTS_REACHED = 0x80042317,
+            VSS_E_WRITER_INFRASTRUCTURE = 0x80042318,
+            VSS_E_WRITER_NOT_RESPONDING = 0x80042319,
+            VSS_E_WRITER_ALREADY_SUBSCRIBED = 0x8004231A,
+            VSS_E_UNSUPPORTED_CONTEXT = 0x8004231B,
+            VSS_E_VOLUME_IN_USE = 0x8004231D,
+            VSS_E_MAXIMUM_DIFFAREA_ASSOCIATIONS_REACHED = 0x8004231E,
+            VSS_E_INSUFFICIENT_STORAGE = 0x8004231F,
+            VSS_E_NO_SNAPSHOTS_IMPORTED = 0x80042320
+        }
+
+        private string GetHresult(long hresult)
+        {
+            if (!Enum.IsDefined(typeof(HRESULT), hresult))
+                return "Unknown";
+            try { return ((HRESULT)hresult).ToString("G"); }
+            catch { return "Unknown"; }
+        }
+
         void snapshotThreadHandler()
         {
             try
@@ -439,7 +485,8 @@ namespace xenwinsvc
             {
                 Debug.Print(vsse.ToString());
                 try {
-                    wmisession.GetXenStoreItem("control/snapshot/error/code").value = vsse.code;
+                    wmisession.GetXenStoreItem("control/snapshot/error/message").value = GetHresult(vsse.code);
+                    wmisession.GetXenStoreItem("control/snapshot/error/code").value = vsse.code.ToString();
                     wmisession.GetXenStoreItem("control/snapshot/error").value = vsse.state;
                     statusKey.value = "snapshot-error";
                 }
