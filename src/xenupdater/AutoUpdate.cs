@@ -117,15 +117,18 @@ namespace XenUpdater
             foreach (var process in Process.GetProcessesByName("XenDPriv.exe"))
                 process.Kill();
 
+            Debug.Print("Executing MSI with: " + start.Arguments);
             Process proc = Process.Start(start);
         }
 
         private Update CheckForUpdates()
         {
-            string url = "https://xenserver-windows-agent-cfu.s3.amazonaws.com/updates.tsv";
+            string url = "https://pvupdates.vmd.citrix.com/updates.tsv";
             if (update_url.Exists)
                 url = update_url.Value;
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);
+
+            Debug.Print("Checking URL: " + url);
 
             WebClient client = new WebClient();
             string contents = client.DownloadString(url);
@@ -158,6 +161,8 @@ namespace XenUpdater
                 if (File.Exists(temp))
                     File.Delete(temp);
 
+                Debug.Print("Downloading: " + update.Url);
+
                 WebClient client = new WebClient();
                 client.DownloadFile(update.Url, temp);
 
@@ -165,6 +170,7 @@ namespace XenUpdater
                 if (!VerifyCertificate(temp))
                     throw new Exception("Invalid Certificate");
 
+                Debug.Print("MSI downloaded to: " + temp);
                 return temp;
             }
             catch
