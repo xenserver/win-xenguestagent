@@ -137,13 +137,20 @@ namespace XenUpdater
             List<Update> updates = new List<Update>();
             foreach (string line in contents.Split(new char[] { '\n' }))
             {
-                Update update = new Update(line);
-                if (update.Arch != arch)
-                    continue;
-                if (version.CompareTo(update.Version) >= 0)
-                    continue;
+                try
+                {
+                    Update update = new Update(line);
+                    if (update.Arch != arch)
+                        continue;
+                    if (version.CompareTo(update.Version) >= 0)
+                        continue;
 
-                updates.Add(update);
+                    updates.Add(update);
+                }
+                catch (Exception e)
+                {
+                    Debug.Print("Exception: " + e.Message);
+                }
             }
 
             updates.Reverse();
@@ -223,7 +230,34 @@ namespace XenUpdater
 
             internal Update(string line)
             {
-                // assume line is JSON or something
+                // Line format = URL\tVERSION\tSIZE\tARCH\tCHECKSUM
+                string[] s = line.Split(new char[] { '\t' });
+                if (s.Length < 3)
+                    throw new FormatException("Invalid update format");
+
+                Url = s[0];
+                Version = new Version(s[1]);
+                Size = int.Parse(s[2]);
+
+                if (s.Length < 4)
+                    Arch = FromUrl(s[0]);
+                else
+                    Arch = s[3];
+
+                if (s.Length < 5)
+                    Checksum = -1;
+                else
+                    Checksum = int.Parse(s[4]);
+
+                FileName = Url.Substring(s[0].LastIndexOf('/') + 1);
+            }
+            private string FromUrl(string s)
+            {
+                if (s.Contains("x86") || s.Contains("X86"))
+                    return "x86";
+                if (s.Contains("x64") || s.Contains("X64"))
+                    return "x64";
+                throw new FormatException("Invalid update format");
             }
         }
 
