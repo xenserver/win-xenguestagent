@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xenguestagent", "xenguestag
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xenguestlib", "xenguestlib\xenguestlib.csproj", "{C628D716-5062-4A5C-904E-4ABEBAB262E0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xenupdater", "xenupdater\xenupdater.csproj", "{83E81650-05AB-404B-8042-A2A6FAAB2BCD}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xendpriv", "xendpriv\xendpriv.csproj", "{F028D47C-F939-42FC-ACD3-C685BFB01B23}"
 EndProject
 Global
@@ -28,6 +30,10 @@ Global
 		{F028D47C-F939-42FC-ACD3-C685BFB01B23}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F028D47C-F939-42FC-ACD3-C685BFB01B23}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F028D47C-F939-42FC-ACD3-C685BFB01B23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{83E81650-05AB-404B-8042-A2A6FAAB2BCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{83E81650-05AB-404B-8042-A2A6FAAB2BCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{83E81650-05AB-404B-8042-A2A6FAAB2BCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{83E81650-05AB-404B-8042-A2A6FAAB2BCD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

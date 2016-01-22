@@ -268,6 +268,7 @@ namespace xenwinsvc
                 new FeatureDomainJoin(this);
                 new FeatureSetComputerName(this);
                 new FeatureXSBatchCommand(this);
+                new FeatureAutoUpdate(this);
 
                 wmisession.Log("About to try snapshot");
                 if (FeatureSnapshot.IsSnapshotSupported())
@@ -286,7 +287,6 @@ namespace xenwinsvc
                 Refresher.Add(new NetInfo(this));
                 Refresher.Add(new VolumeInfo());
                 Refresher.Add(new MemoryInfo());
-                Refresher.Add(new FeatureAutoUpdate(this));
 
                 wmisession.Log("About to add handlers ");
                 clipboardhandler = new ClipboardManager(this);
