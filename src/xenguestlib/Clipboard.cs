@@ -291,11 +291,12 @@ namespace xenwinsvc
                 RegistryKey key = Registry.LocalMachine.CreateSubKey("SYSTEM\\CurrentControlSet\\Control\\Citrix\\wfshell\\TWI",RegistryKeyPermissionCheck.ReadWriteSubTree);
                 string value = (string) key.GetValue("LogoffCheckSysModules","");
                 if (string.IsNullOrEmpty(value)) {
-                    value = "XenDpriv.exe";
+                    value = Branding.Instance.getString("FILENAME_dpriv");
                 }
                 else {
-                    if (!value.Contains("XenDpriv.exe")) {
-                        value = value + ",XenDpriv.exe";
+                    if (!value.Contains(Branding.Instance.getString("FILENAME_dpriv")))
+                    {
+                        value = value + "," + Branding.Instance.getString("FILENAME_dpriv");
                     }
                 }
                 key.SetValue("LogoffCheckSysModules", value);
@@ -323,8 +324,8 @@ namespace xenwinsvc
                 {
                     AddToXDIgnoreApplicationList();
                     string path = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "Install_Dir", "");
-                    string fullpath = string.Format("{0}\\XenDpriv.exe", path);
-                    string cmdline = string.Format("XenDpriv.exe {0}", comms.secret);
+                    string fullpath = string.Format("{0}\\" + Branding.Instance.getString("FILENAME_dpriv"), path);
+                    string cmdline = string.Format(Branding.Instance.getString("FILENAME_dpriv")+" {0}", comms.secret);
                     this.worker = new SafeWaitHandle(Win32Impl.CreateUserProcess(consoletoken, fullpath, cmdline), true);
                     workerWaiter = new ProcessWaitHandle(this.worker);
                     registeredWorkerWaiter = ThreadPool.RegisterWaitForSingleObject(workerWaiter, handleWorker, null, Timeout.Infinite, true);
