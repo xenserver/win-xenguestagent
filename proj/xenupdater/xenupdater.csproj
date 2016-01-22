@@ -48,6 +48,9 @@
     <Compile Include="..\..\src\xenupdater\Wmi.cs" />
   </ItemGroup>
   <ItemGroup>
+    <CopyOut Include="..\..\src\xenupdater\XenUpdater.exe.config" />
+  </ItemGroup>  
+  <ItemGroup>
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <ItemGroup>
