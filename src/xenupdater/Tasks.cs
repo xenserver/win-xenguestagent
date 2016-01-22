@@ -60,6 +60,7 @@ namespace XenUpdater
         #region Helpers for Creating/Removing Task
         public void AddTask()
         {
+            Debug.Print("Adding Task " + TASKNAME);
             ConnectTaskSchedulerService();
 
             ITaskDefinition task = taskService.NewTask(0);
@@ -73,6 +74,7 @@ namespace XenUpdater
             task.Settings.RunOnlyIfNetworkAvailable = true;
             task.Settings.StartWhenAvailable = true;
             task.Settings.StopIfGoingOnBatteries = false;
+            task.Principal.RunLevel = _TASK_RUNLEVEL.TASK_RUNLEVEL_HIGHEST;
 
             DateTime start = DateTime.Now;
             DateTime end = start.AddYears(10);
@@ -93,6 +95,7 @@ namespace XenUpdater
 
         public void RemoveTask()
         {
+            Debug.Print("Removing Task " + TASKNAME);
             ConnectTaskSchedulerService();
             ITaskFolder folder = taskService.GetFolder(TaskPathSeparator);
             folder.DeleteTask(TASKNAME, 0);

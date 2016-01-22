@@ -186,6 +186,24 @@ namespace XenUpdater
             input["PathName"] = path;
             ManagementBaseObject output = Session.InvokeMethod("RemoveValue", input, null);
         }
+
+        public void Log(string message)
+        {
+            string[] lines = message.Split('\n');
+            foreach (string line in lines)
+            {
+                System.Diagnostics.Debug.Print("AutoUpdate: " + line + "\n");
+                try
+                {
+                    ManagementBaseObject input = Session.GetMethodParameters("Log");
+                    input["Message"] = "AutoUpdate: " + line;
+                    ManagementBaseObject output = Session.InvokeMethod("Log", input, null);
+                }
+                catch
+                {
+                }
+            }
+        }
     }
 
     class XenStoreItem
@@ -224,6 +242,18 @@ namespace XenUpdater
                 Session.SetValue(Path, value);
             }
         }
+        public string ValueOrDefault(string def)
+        {
+            try
+            {
+                return Session.GetValue(Path);
+            }
+            catch
+            {
+                return def;
+            }
+        }
+
         public string Path { get; private set; }
 
         public void Remove()

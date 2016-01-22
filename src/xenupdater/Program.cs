@@ -38,8 +38,9 @@ namespace XenUpdater
 {
     class Program
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
+            int returnvalue = -2;
             try
             {
                 bool add = false;
@@ -72,6 +73,7 @@ namespace XenUpdater
                     {
                         tasks.AddTask();
                     }
+                    returnvalue = 0;
                 }
                 if (remove && !add && !check)
                 {
@@ -79,17 +81,21 @@ namespace XenUpdater
                     {
                         tasks.RemoveTask();
                     }
+                    returnvalue =  0;
                 }
                 if (check && !add && !remove)
                 {
                     AutoUpdate auto = new AutoUpdate();
-                    auto.CheckNow();
+                    returnvalue = auto.CheckNow();
                 }
             }
             catch (Exception e)
             {
                 System.Diagnostics.Debug.Print("Exception: " + e.Message);
+                returnvalue = -1;
             }
+            System.Diagnostics.Debug.Print("Returns: " + returnvalue.ToString());
+            return returnvalue;
         }
     }
 }
