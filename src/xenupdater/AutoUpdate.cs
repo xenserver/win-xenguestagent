@@ -101,22 +101,26 @@ namespace XenUpdater
 
             Version minver = new Version(6, 5, 0, 0);
             if (minver.CompareTo(version) > 0)
+            {
+                session.Log("Version " + version.ToString() + " disallowed updates");
                 return false;
+            }
+
             return true;
         }
 
-        public void CheckNow()
+        public int CheckNow()
         {
             if (!CheckIsAllowed())
-                return;
+                return 1;
 
             Update update = CheckForUpdates();
             if (update == null)
-                return;
+                return 2;
 
             session.Log("Update found (" + update.Version.ToString() + ")\n" +
                         "> " + update.Url + "\n" +
-                        "> " + update.Size + "bytes\n");
+                        "> " + update.Size + " bytes");
 
             string temp = DownloadUpdate(update);
             if (String.IsNullOrEmpty(temp))
@@ -137,6 +141,7 @@ namespace XenUpdater
 
             session.Log("Executing MSI with: " + start.Arguments);
             Process proc = Process.Start(start);
+            return 0;
         }
 
         private Update CheckForUpdates()
