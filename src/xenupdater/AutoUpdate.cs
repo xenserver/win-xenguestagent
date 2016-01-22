@@ -80,26 +80,43 @@ namespace XenUpdater
             version = new Version(major, minor, micro, build);
         }
 
-        public void CheckNow()
+        private bool CheckIsAllowed()
         {
-            if (!licensed.Exists)
-                return;
-            if (licensed.Value != "1")
-                return;
-            if (!enabled.Exists)
-                return;
-            if (enabled.Value != "1")
-                return;
+            // if licensed key doesnt exist, "missing" is returned which is not "1"
+            if (licensed.ValueOrDefault("missing") != "1")
+                return false;
+
+            // if enabled key doesnt exist, "missing" is returned which is not "1"
+            if (enabled.ValueOrDefault("missing") != "1")
+            {
+                session.Log("Pool/Host disallowed updates");
+                return false;
+            }
+
             if ((int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0) != 0)
-                return;
+            {
+                session.Log("Guest disallowed updates");
+                return false;
+            }
+
             Version minver = new Version(6, 5, 0, 0);
             if (minver.CompareTo(version) > 0)
+                return false;
+            return true;
+        }
+
+        public void CheckNow()
+        {
+            if (!CheckIsAllowed())
                 return;
 
-            // Do the Update
             Update update = CheckForUpdates();
             if (update == null)
                 return;
+
+            session.Log("Update found (" + update.Version.ToString() + ")\n" +
+                        "> " + update.Url + "\n" +
+                        "> " + update.Size + "bytes\n");
 
             string temp = DownloadUpdate(update);
             if (String.IsNullOrEmpty(temp))
@@ -114,10 +131,11 @@ namespace XenUpdater
             start.RedirectStandardOutput = true;
             start.Arguments = " /i \"" + temp + "\" TARGETDIR=\"" + target + "\" /log \"" + Path.Combine(target, "agent3log.log") + "\" /qn";
 
+            session.Log("Killing all XenDPriv.exe processes");
             foreach (var process in Process.GetProcessesByName("XenDPriv.exe"))
                 process.Kill();
 
-            Debug.Print("Executing MSI with: " + start.Arguments);
+            session.Log("Executing MSI with: " + start.Arguments);
             Process proc = Process.Start(start);
         }
 
@@ -128,7 +146,7 @@ namespace XenUpdater
                 url = update_url.Value;
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);
 
-            Debug.Print("Checking URL: " + url);
+            session.Log("Checking URL: " + url);
 
             WebClient client = new WebClient();
             string contents = client.DownloadString(url);
@@ -149,7 +167,7 @@ namespace XenUpdater
                 }
                 catch (Exception e)
                 {
-                    Debug.Print("Exception: " + e.Message);
+                    session.Log("Exception: " + e.Message);
                 }
             }
 
@@ -168,7 +186,7 @@ namespace XenUpdater
                 if (File.Exists(temp))
                     File.Delete(temp);
 
-                Debug.Print("Downloading: " + update.Url);
+                session.Log("Downloading: " + update.Url);
 
                 WebClient client = new WebClient();
                 client.DownloadFile(update.Url, temp);
@@ -177,7 +195,7 @@ namespace XenUpdater
                 if (!VerifyCertificate(temp))
                     throw new Exception("Invalid Certificate");
 
-                Debug.Print("MSI downloaded to: " + temp);
+                session.Log("MSI downloaded to: " + temp);
                 return temp;
             }
             catch
