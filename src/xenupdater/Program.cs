@@ -33,19 +33,29 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Security.Principal;
 
 namespace XenUpdater
 {
     class Program
     {
+        enum HRESULT : int
+        {
+            E_ACCESSDENIED = unchecked((int)0x80070005)
+        }
         static int Main(string[] args)
         {
-            int returnvalue = -2;
             try
             {
                 bool add = false;
                 bool remove = false;
                 bool check = true;
+
+                if (!IsElevated())
+                {
+                    System.Diagnostics.Debug.Print("XenUpdater.exe must be run by an elevated administrator account");
+                    return (int)HRESULT.E_ACCESSDENIED;
+                }
 
                 // check params for config options...
                 foreach (string arg in args)
@@ -73,7 +83,6 @@ namespace XenUpdater
                     {
                         tasks.AddTask();
                     }
-                    returnvalue = 0;
                 }
                 if (remove && !add && !check)
                 {
@@ -81,21 +90,24 @@ namespace XenUpdater
                     {
                         tasks.RemoveTask();
                     }
-                    returnvalue =  0;
                 }
                 if (check && !add && !remove)
                 {
                     AutoUpdate auto = new AutoUpdate();
-                    returnvalue = auto.CheckNow();
+                    auto.CheckNow();
                 }
+                return 0;
             }
             catch (Exception e)
             {
-                System.Diagnostics.Debug.Print("Exception: " + e.Message);
-                returnvalue = -1;
+                System.Diagnostics.Debug.Print("Exception: " + e.ToString());
+                return -1; // TODO: Return the HRESULT of this exception
             }
-            System.Diagnostics.Debug.Print("Returns: " + returnvalue.ToString());
-            return returnvalue;
+        }
+
+        static bool IsElevated()
+        {
+            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
         }
     }
 }

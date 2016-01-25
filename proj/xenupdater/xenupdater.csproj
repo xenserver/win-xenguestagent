@@ -30,6 +30,9 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>..\..\src\xenupdater\XenUpdater.exe.manifest</ApplicationManifest>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -46,6 +49,9 @@
     <Compile Include="..\..\src\xenupdater\Properties\AssemblyInfo.cs" />
     <Compile Include="..\..\src\xenupdater\Tasks.cs" />
     <Compile Include="..\..\src\xenupdater\Wmi.cs" />
+    <None Include="..\..\src\xenupdater\XenUpdater.exe.manifest">
+      <SubType>Designer</SubType>
+    </None>	
   </ItemGroup>
   <ItemGroup>
     <CopyOut Include="..\..\src\xenupdater\XenUpdater.exe.config" />

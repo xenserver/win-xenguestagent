@@ -109,24 +109,22 @@ namespace XenUpdater
             return true;
         }
 
-        public int CheckNow()
+        public void CheckNow()
         {
             if (!CheckIsAllowed())
-                return 1;
+                return; // updates disallowed, reasons already logged if important
 
             Update update = CheckForUpdates();
             if (update == null)
-                return 2;
+                return; // no updates available, no logging
 
             session.Log("Update found (" + update.Version.ToString() + ")\n" +
                         "> " + update.Url + "\n" +
                         "> " + update.Size + " bytes");
 
             string temp = DownloadUpdate(update);
-            if (String.IsNullOrEmpty(temp))
-                return;
-
             string target = GetTarget();
+
             ProcessStartInfo start = new ProcessStartInfo();
             start.FileName = "msiexec.exe";
             start.CreateNoWindow = true;
@@ -141,7 +139,6 @@ namespace XenUpdater
 
             session.Log("Executing MSI with: " + start.Arguments);
             Process proc = Process.Start(start);
-            return 0;
         }
 
         private Update CheckForUpdates()
@@ -153,8 +150,17 @@ namespace XenUpdater
 
             session.Log("Checking URL: " + url);
 
-            WebClient client = new WebClient();
-            string contents = client.DownloadString(url);
+            string contents = "";
+            try
+            {
+                WebClient client = new WebClient();
+                contents = client.DownloadString(url);
+            }
+            catch
+            {
+                // catch exceptions from webclient to suppress any messages (i.e. https response 304/404/etc)
+                return null;
+            }
 
             string arch = (Win32Impl.Is64BitOS() && (!Win32Impl.IsWOW64())) ? "x64" : "x86";
             List<Update> updates = new List<Update>();
@@ -196,40 +202,32 @@ namespace XenUpdater
                 WebClient client = new WebClient();
                 client.DownloadFile(update.Url, temp);
 
-                // validate checksum
                 if (!VerifyCertificate(temp))
-                    throw new Exception("Invalid Certificate");
+                    throw new UnauthorizedAccessException("Certificate subject is invalid");
 
                 session.Log("MSI downloaded to: " + temp);
                 return temp;
             }
-            catch
+            catch (Exception e)
             {
                 if (File.Exists(temp))
                     File.Delete(temp);
-                return null;
+                throw e;
             }
         }
 
         private bool VerifyCertificate(string filename)
         {
-            try
-            {
-                X509Certificate signer = X509Certificate.CreateFromSignedFile(filename);
-                if (!signer.Subject.Contains("O=\"Citrix Systems, Inc.\""))
-                    return false;
-                X509Certificate2 cert = new X509Certificate2(signer);
-                X509Chain chain = new X509Chain();
-                chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
-                chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
-                chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
-                chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
-                return chain.Build(cert);
-            }
-            catch
-            {
+            X509Certificate signer = X509Certificate.CreateFromSignedFile(filename);
+            if (!signer.Subject.Contains("O=\"Citrix Systems, Inc.\""))
                 return false;
-            }
+            X509Certificate2 cert = new X509Certificate2(signer);
+            X509Chain chain = new X509Chain();
+            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
+            chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+            return chain.Build(cert);
         }
 
         private string GetTarget()
