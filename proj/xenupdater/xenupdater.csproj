@@ -7,7 +7,7 @@
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>xenupdater</RootNamespace>
-    <AssemblyName>xenupdater</AssemblyName>
+    <AssemblyName>ManagementAgentUpdater</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -54,7 +54,7 @@
     </None>	
   </ItemGroup>
   <ItemGroup>
-    <CopyOut Include="..\..\src\xenupdater\XenUpdater.exe.config" />
+    <CopyOut Include="..\..\src\xenupdater\ManagementAgentUpdater.exe.config" />
   </ItemGroup>  
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
