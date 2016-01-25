@@ -33,6 +33,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Security.Principal;
 
 namespace XenUpdater
 {
@@ -46,6 +47,9 @@ namespace XenUpdater
                 bool add = false;
                 bool remove = false;
                 bool check = true;
+
+                if (!IsElevated())
+                    throw new Exception("XenUpdater.exe must be run by an elevated administrator account");
 
                 // check params for config options...
                 foreach (string arg in args)
@@ -96,6 +100,11 @@ namespace XenUpdater
             }
             System.Diagnostics.Debug.Print("Returns: " + returnvalue.ToString());
             return returnvalue;
+        }
+
+        static bool IsElevated()
+        {
+            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
         }
     }
 }
