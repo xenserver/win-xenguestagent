@@ -124,7 +124,7 @@ namespace XenUpdater
 
             string temp = DownloadUpdate(update);
             if (String.IsNullOrEmpty(temp))
-                return;
+                return 3;
 
             string target = GetTarget();
             ProcessStartInfo start = new ProcessStartInfo();
