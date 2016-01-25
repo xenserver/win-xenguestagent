@@ -64,8 +64,10 @@ namespace XenUpdater
             ConnectTaskSchedulerService();
 
             ITaskDefinition task = taskService.NewTask(0);
+
             task.RegistrationInfo.Author = AUTHOR;
             task.RegistrationInfo.Description = DESCRIPTION;
+
             task.Settings.AllowDemandStart = true;
             task.Settings.Compatibility = _TASK_COMPATIBILITY.TASK_COMPATIBILITY_V2_1;
             task.Settings.Enabled = true;
@@ -74,9 +76,14 @@ namespace XenUpdater
             task.Settings.RunOnlyIfNetworkAvailable = true;
             task.Settings.StartWhenAvailable = true;
             task.Settings.StopIfGoingOnBatteries = false;
+
+            task.Settings.IdleSettings.StopOnIdleEnd = false;
+
+            task.Principal.GroupId = "SYSTEM";
             task.Principal.RunLevel = _TASK_RUNLEVEL.TASK_RUNLEVEL_HIGHEST;
 
-            DateTime start = DateTime.Now;
+            DateTime now = DateTime.Now;
+            DateTime start = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0);
             DateTime end = start.AddYears(10);
 
             IDailyTrigger trigger = (IDailyTrigger)task.Triggers.Create(_TASK_TRIGGER_TYPE2.TASK_TRIGGER_DAILY);
@@ -90,7 +97,7 @@ namespace XenUpdater
             action.Path = Process.GetCurrentProcess().MainModule.FileName;
 
             ITaskFolder root = taskService.GetFolder(TaskPathSeparator);
-            root.RegisterTaskDefinition(TASKNAME, task, 6, null, null, _TASK_LOGON_TYPE.TASK_LOGON_NONE, null);
+            root.RegisterTaskDefinition(TASKNAME, task, 6 /* TASK_CREATE_OR_UPDATE */, null, null, _TASK_LOGON_TYPE.TASK_LOGON_SERVICE_ACCOUNT, null);
         }
 
         public void RemoveTask()
@@ -100,6 +107,24 @@ namespace XenUpdater
             ITaskFolder folder = taskService.GetFolder(TaskPathSeparator);
             folder.DeleteTask(TASKNAME, 0);
             ReleaseComObject(folder);
+        }
+
+        public void ListTasks()
+        {
+            Debug.Print("Listing Tasks");
+            ConnectTaskSchedulerService();
+
+            ITaskFolder folder = taskService.GetFolder(TaskPathSeparator);
+            IRegisteredTaskCollection tasks = folder.GetTasks(1);
+
+            foreach (IRegisteredTask task in tasks)
+            {
+                Debug.Print("Task: " + task.Path + " : " + task.Name);
+
+                ITaskDefinition def = task.Definition;
+                Debug.Print("> " + def.Principal.RunLevel.ToString());
+                Debug.Print("> " + task.Xml);
+            }
         }
         #endregion
 
