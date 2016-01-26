@@ -79,7 +79,7 @@ namespace XenUpdater
 
             task.Settings.IdleSettings.StopOnIdleEnd = false;
 
-            task.Principal.GroupId = "SYSTEM";
+            task.Principal.GroupId = "S-1-5-18"; // LocalSystem
             task.Principal.RunLevel = _TASK_RUNLEVEL.TASK_RUNLEVEL_HIGHEST;
 
             DateTime now = DateTime.Now;
