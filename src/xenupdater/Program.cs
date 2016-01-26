@@ -41,7 +41,8 @@ namespace XenUpdater
     {
         enum HRESULT : int
         {
-            E_ACCESSDENIED = unchecked((int)0x80070005)
+            E_ACCESSDENIED = unchecked((int)0x80070005),
+            E_INVALIDARG = unchecked((int)0x80070057)
         }
         static int Main(string[] args)
         {
@@ -97,6 +98,16 @@ namespace XenUpdater
                     auto.CheckNow();
                 }
                 return 0;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                System.Diagnostics.Debug.Print("Exception: " + e.ToString());
+                return (int)HRESULT.E_ACCESSDENIED;
+            }
+            catch (FormatException e)
+            {
+                System.Diagnostics.Debug.Print("Exception: " + e.ToString());
+                return (int)HRESULT.E_INVALIDARG;
             }
             catch (Exception e)
             {
