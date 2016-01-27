@@ -11,11 +11,11 @@ namespace xenwinsvc
         {
             this.wmisession = wmisession;
             el = new EventLog();
-            el.Source = "XenGuestAgent";
-            if (!EventLog.SourceExists("XenGuestAgent"))
+            el.Source = Branding.Instance.getString("BRANDING_GuestAgentLogSource");
+            if (!EventLog.SourceExists(el.Source))
             {
                 //Create New Log       
-                EventLog.CreateEventSource("XenGuestAgent", "XenGuestAgentLog");
+                EventLog.CreateEventSource(el.Source, Branding.Instance.getString("BRANDING_GuestAgentLogName"));
             }
         }
 

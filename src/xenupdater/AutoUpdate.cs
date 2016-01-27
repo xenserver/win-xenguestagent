@@ -40,6 +40,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using System.Collections.Generic;
 using TaskScheduler;
+using BrandSupport;
 
 namespace XenUpdater
 {
@@ -143,7 +144,7 @@ namespace XenUpdater
 
         private Update CheckForUpdates()
         {
-            string url = "https://pvupdates.vmd.citrix.com/updates.tsv";
+            string url = Branding.GetString("BRANDING_updaterURL");
             if (update_url.Exists)
                 url = update_url.Value;
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);

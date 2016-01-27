@@ -32,8 +32,8 @@ using System.Reflection;
 
 [assembly:AssemblyVersion(XenVersions.Version)]
 [assembly:AssemblyFileVersion(XenVersions.Version)]
-[assembly:AssemblyCompanyAttribute(XenVersions.LongName)]
-[assembly:AssemblyProductAttribute(XenVersions.ShortName+" Tools For Virtual Machines")]
-[assembly:AssemblyDescriptionAttribute(XenVersions.ShortName+" Xen Windows Guest Agent Support Library")]
-[assembly:AssemblyTitleAttribute(XenVersions.ShortName+" Xen Windows Guest Agent Support Library")]
-[assembly:AssemblyCopyrightAttribute("Copyright "+XenVersions.CopyrightYears+" "+XenVersions.LongName)]
+[assembly:AssemblyCompanyAttribute(XenVersions.BRANDING_manufacturerLong)]
+[assembly:AssemblyProductAttribute(XenVersions.BRANDING_toolsForVMs)]
+[assembly:AssemblyDescriptionAttribute(XenVersions.BRANDING_guestLibDesc)]
+[assembly:AssemblyTitleAttribute(XenVersions.BRANDING_guestLibDesc)]
+[assembly:AssemblyCopyrightAttribute(XenVersions.BRANDING_copyrightGuestLib)]

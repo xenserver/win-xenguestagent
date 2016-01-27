@@ -8,9 +8,9 @@ namespace XenUpdater
     class Tasks : IDisposable
     {
         #region Constants
-        const string TASKNAME = "Citrix XenGuestAgent Auto-Updater";
-        const string AUTHOR = "Citrix Systems, Inc.";
-        const string DESCRIPTION = "Automatically checks and updates Xen Guest Agent";
+        const string TASKNAME = XenVersions.BRANDING_updaterLong;
+        const string AUTHOR = XenVersions.BRANDING_manufacturerLong;
+        const string DESCRIPTION = XenVersions.BRANDING_updaterDesc;
 
         const string TaskPathSeparator = "\\";
         const string DateTimeFormatExpectedByCOM = "yyyy-MM-ddThh:mm:ss";

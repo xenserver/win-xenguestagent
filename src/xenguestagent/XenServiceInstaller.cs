@@ -35,6 +35,8 @@ using System.Text;
 using System.ComponentModel;
 using System.Configuration.Install;
 using System.ServiceProcess;
+using XenGuestLib;
+
 namespace xenwinsvc
 {
     [RunInstaller(true)]
@@ -50,8 +52,8 @@ namespace xenwinsvc
 
             processInstaller.Account = ServiceAccount.LocalSystem;
             serviceInstaller.StartType = ServiceStartMode.Automatic;
-            serviceInstaller.ServiceName = "Citrix Xen Guest Agent";
-            serviceInstaller.Description = "Monitors and provides various metrics to XenStore";
+            serviceInstaller.ServiceName = Branding.Instance.getString("BRANDING_guestagent");
+            serviceInstaller.Description = Branding.Instance.getString("BRANDING_guestServiceDesc");
             serviceInstaller.ServicesDependedOn = new string[] { "Winmgmt", "CryptSvc" };
 
             Installers.Add(serviceInstaller);

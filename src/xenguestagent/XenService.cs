@@ -42,11 +42,11 @@ using XenGuestLib;
 
 [assembly:AssemblyVersion(XenVersions.Version)]
 [assembly:AssemblyFileVersion(XenVersions.Version)]
-[assembly:AssemblyCompanyAttribute(XenVersions.LongName)]
-[assembly:AssemblyProductAttribute(XenVersions.ShortName+" Tools For Virtual Machines")]
-[assembly:AssemblyDescriptionAttribute(XenVersions.ShortName+" Xen Windows Guest Agent")]
-[assembly:AssemblyTitleAttribute(XenVersions.ShortName+" Xen Windows Guest Agent")]
-[assembly:AssemblyCopyrightAttribute("Copyright "+XenVersions.CopyrightYears+" "+XenVersions.LongName)]
+[assembly:AssemblyCompanyAttribute(XenVersions.BRANDING_manufacturerLong)]
+[assembly:AssemblyProductAttribute(XenVersions.BRANDING_toolsForVMs)]
+[assembly:AssemblyDescriptionAttribute(XenVersions.BRANDING_guestAgentLong)]
+[assembly:AssemblyTitleAttribute(XenVersions.BRANDING_guestAgentLong)]
+[assembly:AssemblyCopyrightAttribute(XenVersions.BRANDING_copyrightGuestAgent)]
 
 
 namespace xenwinsvc
@@ -98,16 +98,16 @@ namespace xenwinsvc
         public XenService()
         {
      
-            Debug.Print("XenService Init");
+            Debug.Print("GuestAgent Init");
             tlog = new TimeDateTraceListener("guest");
             Trace.Listeners.Add(tlog); Trace.WriteLine("This is all");
-            this.ServiceName = "Citrix Xen Guest Agent";
+            this.ServiceName = Branding.Instance.getString("BRANDING_guestAgent");
             this.CanStop = true;
             this.CanHandleSessionChangeEvent = true;
             this.CanHandlePowerEvent = true;
             this.AutoLog = true;
             servicestatelock = new object();
-            Debug.Print("XenService Init Done");
+            Debug.Print("GuestAgent Init Done");
         }
 
 
@@ -175,7 +175,7 @@ namespace xenwinsvc
                     Debug.Print("Waiting for WMI capability to begin");
                     try
                     {
-                        EventLog.WriteEntry("Citrix Xen Guest Agent cannot find XenIface WMI interface");
+                        EventLog.WriteEntry(Branding.Instance.getString("BRANDING_errNoWMI"));
                     }
                     catch { };
 
@@ -185,7 +185,7 @@ namespace xenwinsvc
                     if (activehandle == 0 ) {
                         try
                         {
-                            EventLog.WriteEntry("Citrix Xen Guest Agent cannot find XenIface WMI interface");
+                            EventLog.WriteEntry(Branding.Instance.getString("BRANDING_errNoWMI"));
                         }
                         catch { };
                         starting = true;
@@ -393,7 +393,7 @@ namespace xenwinsvc
                 {
                     if (WmiBase.HandleManagementException(e as ManagementException))
                     {
-                        Debug.Print("XenIface WMI objects cannot be located.  Resetting service");
+                        Debug.Print("WMI objects cannot be located.  Resetting service");
                         OnNeedsReset();
                         return;
                     }
@@ -601,11 +601,11 @@ namespace xenwinsvc
                 }
                 if (!(uninstall || install))
                 {
-                    Debug.Print("XenService Main");
+                    Debug.Print("Service Main");
                     rethrow = true;
                     System.ServiceProcess.ServiceBase.Run(new XenService());
                     rethrow = false;
-                    Debug.Print("XenService Main Done");
+                    Debug.Print("Service Main Done");
                 }
                 return 0;
             }

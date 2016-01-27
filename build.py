@@ -37,22 +37,22 @@ import glob
 import shutil
 import tarfile
 import subprocess
+import imp
+
+(brandingFile, brandingPath, brandingDesc) = imp.find_module("branding",["src\\branding"])
+branding = imp.load_module("branding",brandingFile,brandingPath,brandingDesc)
+
 
 def make_header():
     now = datetime.datetime.now()
 
     file = open('src\\xenguestlib\\VerInfo.cs', 'w')
 
-    file.write('public class XenVersions {')
-    file.write('public const string Version="'+os.environ['MAJOR_VERSION']+'.'+os.environ['MINOR_VERSION']+'.'+os.environ['MICRO_VERSION']+'.'+os.environ['BUILD_NUMBER']+'";')
-
-    rest = """
-        public const string ShortName = "Citrix";
-        public const string LongName = "Citrix Systems, Inc.";
-        public const string CopyrightYears = "2012";
-    }
-    """
-    file.write(rest)
+    file.write('public class XenVersions {\n')
+    file.write('public const string Version="'+os.environ['MAJOR_VERSION']+'.'+os.environ['MINOR_VERSION']+'.'+os.environ['MICRO_VERSION']+'.'+os.environ['BUILD_NUMBER']+'";\n')
+    for key,value in branding.branding.items():
+        file.write("public const string BRANDING_"+key+" = \""+value.replace("\\","\\\\")+"\";\n")
+    file.write("}")
 
     file.close()
 

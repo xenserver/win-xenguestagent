@@ -283,7 +283,7 @@ namespace xenwinsvc
         XenStoreItem warn;
 
         public FeatureSetComputerName(IExceptionHandler exceptionhandler)
-            : base("Set Computer Name", "control/feature-setcomputername", "control/setcomputername/action", true, exceptionhandler)
+            : base(Branding.Instance.getString("BRANDING_setComputerName"), "control/feature-setcomputername", "control/setcomputername/action", true, exceptionhandler)
         {
             name =  wmisession.GetXenStoreItem("control/setcomputername/name");
             state =  wmisession.GetXenStoreItem("control/setcomputername/state");
