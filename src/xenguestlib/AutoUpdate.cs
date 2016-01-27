@@ -57,7 +57,7 @@ namespace xenwinsvc
                 return;
 
             ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = "xenupdater.exe";
+            startInfo.FileName = "ManagementAgentUpdater.exe";
             startInfo.CreateNoWindow = true;
             startInfo.UseShellExecute = false;
             startInfo.RedirectStandardError = true;
