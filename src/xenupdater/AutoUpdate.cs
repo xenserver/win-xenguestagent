@@ -200,8 +200,9 @@ namespace XenUpdater
 
                 session.Log("Downloading: " + update.Url);
 
-                WebClient client = new WebClient();
-                client.DownloadFile(update.Url, temp);
+                Downloader down = new Downloader();
+                if (!down.Download(update.Url, temp, update.Size))
+                    throw new ArgumentException("Update was incorrect size " + update.Url + " > " + update.Size.ToString() + " bytes");
 
                 if (!VerifyCertificate(temp))
                     throw new UnauthorizedAccessException("Certificate subject is invalid");
@@ -281,6 +282,52 @@ namespace XenUpdater
                     return "x64";
                 throw new FormatException("Invalid update format");
             }
+        }
+
+        class Downloader
+        {
+            public Downloader()
+            {
+                finished = new AutoResetEvent(false);
+            }
+
+            public bool Download(string url, string file, int maxsize)
+            {
+                maxSize = maxsize;
+                complete = false;
+
+                client = new WebClient();
+                client.DownloadFileCompleted += new System.ComponentModel.AsyncCompletedEventHandler(DownloadCompleted);
+                client.DownloadProgressChanged += new DownloadProgressChangedEventHandler(DownloadProgressChanged);
+                client.DownloadFileAsync(new Uri(url), file);
+
+                finished.WaitOne();
+                return complete;
+            }
+
+            private void DownloadCompleted(object sender, System.ComponentModel.AsyncCompletedEventArgs evt)
+            {
+                if (evt.Cancelled || evt.Error != null)
+                    complete = false;
+                else
+                    complete = true;
+                finished.Set();
+            }
+
+            private void DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs evt)
+            {
+                if (evt.BytesReceived > maxSize)
+                {
+                    complete = false;
+                    client.CancelAsync();
+                    finished.Set();
+                }
+            }
+
+            private WebClient client;
+            private int maxSize;
+            private bool complete;
+            private AutoResetEvent finished;
         }
 
         class Win32Impl
