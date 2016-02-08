@@ -151,17 +151,8 @@ namespace XenUpdater
 
             session.Log("Checking URL: " + url);
 
-            string contents = "";
-            try
-            {
-                WebClient client = new WebClient();
-                contents = client.DownloadString(url);
-            }
-            catch
-            {
-                // catch exceptions from webclient to suppress any messages (i.e. https response 304/404/etc)
-                return null;
-            }
+            WebClient client = new WebClient();
+            string contents = client.DownloadString(url);
 
             string arch = (Win32Impl.Is64BitOS() && (!Win32Impl.IsWOW64())) ? "x64" : "x86";
             List<Update> updates = new List<Update>();
@@ -176,6 +167,7 @@ namespace XenUpdater
                         continue;
 
                     updates.Add(update);
+                    session.Log("Update Entry :" + update.ToString());
                 }
                 catch (Exception e)
                 {
@@ -200,8 +192,9 @@ namespace XenUpdater
 
                 session.Log("Downloading: " + update.Url);
 
-                WebClient client = new WebClient();
-                client.DownloadFile(update.Url, temp);
+                Downloader down = new Downloader();
+                if (!down.Download(update.Url, temp, update.Size))
+                    throw new ArgumentException("Update was incorrect size " + update.Url + " > " + update.Size.ToString() + " bytes");
 
                 if (!VerifyCertificate(temp))
                     throw new UnauthorizedAccessException("Certificate subject is invalid");
@@ -255,7 +248,7 @@ namespace XenUpdater
                 // Line format = URL\tVERSION\tSIZE\tARCH\tCHECKSUM
                 string[] s = line.Split(new char[] { '\t' });
                 if (s.Length < 3)
-                    throw new FormatException("Invalid update format");
+                    throw new FormatException("Invalid update format :" + line);
 
                 Url = s[0];
                 Version = new Version(s[1]);
@@ -281,6 +274,57 @@ namespace XenUpdater
                     return "x64";
                 throw new FormatException("Invalid update format");
             }
+
+            public override string ToString()
+            {
+                return Arch + " > " + Url + " " + this.Version.ToString() + " = " + Size.ToString() + " (" + Checksum.ToString() + ")";
+            }
+        }
+
+        class Downloader
+        {
+            public Downloader()
+            {
+                finished = new AutoResetEvent(false);
+            }
+
+            public bool Download(string url, string file, int maxsize)
+            {
+                maxSize = maxsize;
+                complete = false;
+
+                client = new WebClient();
+                client.DownloadFileCompleted += new System.ComponentModel.AsyncCompletedEventHandler(DownloadCompleted);
+                client.DownloadProgressChanged += new DownloadProgressChangedEventHandler(DownloadProgressChanged);
+                client.DownloadFileAsync(new Uri(url), file);
+
+                finished.WaitOne();
+                return complete;
+            }
+
+            private void DownloadCompleted(object sender, System.ComponentModel.AsyncCompletedEventArgs evt)
+            {
+                if (evt.Cancelled || evt.Error != null)
+                    complete = false;
+                else
+                    complete = true;
+                finished.Set();
+            }
+
+            private void DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs evt)
+            {
+                if (evt.BytesReceived > maxSize)
+                {
+                    complete = false;
+                    client.CancelAsync();
+                    finished.Set();
+                }
+            }
+
+            private WebClient client;
+            private int maxSize;
+            private bool complete;
+            private AutoResetEvent finished;
         }
 
         class Win32Impl

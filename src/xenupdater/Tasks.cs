@@ -90,7 +90,7 @@ namespace XenUpdater
             trigger.Enabled = true;
             trigger.StartBoundary = start.ToString(DateTimeFormatExpectedByCOM);
             trigger.EndBoundary = end.ToString(DateTimeFormatExpectedByCOM);
-            trigger.DaysInterval = 1; // every day
+            trigger.DaysInterval = 7; // every 7 days
             trigger.RandomDelay = "P0DT4H0M0S"; // up-to-4 hours random
 
             IExecAction action = (IExecAction)task.Actions.Create(_TASK_ACTION_TYPE.TASK_ACTION_EXEC);
