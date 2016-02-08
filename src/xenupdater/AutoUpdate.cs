@@ -151,17 +151,8 @@ namespace XenUpdater
 
             session.Log("Checking URL: " + url);
 
-            string contents = "";
-            try
-            {
-                WebClient client = new WebClient();
-                contents = client.DownloadString(url);
-            }
-            catch
-            {
-                // catch exceptions from webclient to suppress any messages (i.e. https response 304/404/etc)
-                return null;
-            }
+            WebClient client = new WebClient();
+            string contents = client.DownloadString(url);
 
             string arch = (Win32Impl.Is64BitOS() && (!Win32Impl.IsWOW64())) ? "x64" : "x86";
             List<Update> updates = new List<Update>();
@@ -176,6 +167,7 @@ namespace XenUpdater
                         continue;
 
                     updates.Add(update);
+                    session.Log("Update Entry :" + update.ToString());
                 }
                 catch (Exception e)
                 {
@@ -256,7 +248,7 @@ namespace XenUpdater
                 // Line format = URL\tVERSION\tSIZE\tARCH\tCHECKSUM
                 string[] s = line.Split(new char[] { '\t' });
                 if (s.Length < 3)
-                    throw new FormatException("Invalid update format");
+                    throw new FormatException("Invalid update format :" + line);
 
                 Url = s[0];
                 Version = new Version(s[1]);
@@ -281,6 +273,11 @@ namespace XenUpdater
                 if (s.Contains("x64") || s.Contains("X64"))
                     return "x64";
                 throw new FormatException("Invalid update format");
+            }
+
+            public override string ToString()
+            {
+                return Arch + " > " + Url + " " + this.Version.ToString() + " = " + Size.ToString() + " (" + Checksum.ToString() + ")";
             }
         }
 
