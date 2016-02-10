@@ -87,6 +87,10 @@ namespace XenUpdater
             if (licensed.ValueOrDefault("missing") != "1")
                 return false;
 
+            Version minver = new Version(6, 6, 0, 0);
+            if (minver.CompareTo(version) > 0) // disallow on Cream, allow on Dundee and later
+                return false;
+
             // if enabled key doesnt exist, "missing" is returned which is not "1"
             if (enabled.ValueOrDefault("missing") != "1")
             {
@@ -97,13 +101,6 @@ namespace XenUpdater
             if ((int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0) != 0)
             {
                 session.Log("Guest disallowed updates");
-                return false;
-            }
-
-            Version minver = new Version(6, 5, 0, 0);
-            if (minver.CompareTo(version) > 0)
-            {
-                session.Log("Version " + version.ToString() + " disallowed updates");
                 return false;
             }
 
@@ -119,9 +116,7 @@ namespace XenUpdater
             if (update == null)
                 return; // no updates available, no logging
 
-            session.Log("Update found (" + update.Version.ToString() + ")\n" +
-                        "> " + update.Url + "\n" +
-                        "> " + update.Size + " bytes");
+            session.Log("Update found " + update.ToString());
 
             string temp = DownloadUpdate(update);
             string target = GetTarget();
@@ -145,11 +140,16 @@ namespace XenUpdater
         private Update CheckForUpdates()
         {
             string url = Branding.GetString("BRANDING_updaterURL");
+            if (String.IsNullOrEmpty(url))
+                url = "https://pvupdates.vmd.citrix.com/updates.tsv";
             if (update_url.Exists)
                 url = update_url.Value;
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);
 
+            if (String.IsNullOrEmpty(url))
+                throw new ArgumentNullException("URL is empty");
             session.Log("Checking URL: " + url);
+            session.Log("For updates after: " + version.ToString());
 
             WebClient client = new WebClient();
             string contents = client.DownloadString(url);
@@ -158,12 +158,14 @@ namespace XenUpdater
             List<Update> updates = new List<Update>();
             foreach (string line in contents.Split(new char[] { '\n' }))
             {
+                if (String.IsNullOrEmpty(line))
+                    continue;
                 try
                 {
                     Update update = new Update(line);
                     if (update.Arch != arch)
                         continue;
-                    if (version.CompareTo(update.Version) >= 0)
+                    if (update.Version.CompareTo(version) <= 0)
                         continue;
 
                     updates.Add(update);
@@ -226,12 +228,13 @@ namespace XenUpdater
 
         private string GetTarget()
         {
-            //string defaultPath = Application.StartupPath;
-            string defaultPath = Environment.CurrentDirectory;
+            // "<Program Files>\Citrix\XenTools"
+            string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Citrix\\XenTools");
             string regPath = (Win32Impl.Is64BitOS()) ? 
-                            "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Citrix\\XenToolsInstaller" :
-                            "HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenToolsInstaller";
-            return (string)Registry.GetValue(regPath, "Install_Dir", defaultPath);
+                            "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Citrix\\XenTools" :
+                            "HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools";
+            string targetPath = (string)Registry.GetValue(regPath, "Install_Dir", path);
+            return String.IsNullOrEmpty(targetPath) ? path : targetPath;
         }
 
         class Update
