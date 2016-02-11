@@ -50,6 +50,7 @@ namespace XenUpdater
         XenStoreItem licensed;
         XenStoreItem enabled;
         XenStoreItem update_url;
+        XenStoreItem xdvdapresent;
         Version version;
 
         private object GetReg(string key, string name, object def)
@@ -73,6 +74,7 @@ namespace XenUpdater
             licensed = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/licensed");
             enabled = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/enabled");
             update_url = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
+            xdvdapresent = new XenStoreItem(session, "data/xd/present");
 
             int major = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0); 
             int minor = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0);
@@ -102,6 +104,13 @@ namespace XenUpdater
             {
                 session.Log("Guest disallowed updates");
                 return false;
+            }
+
+            if (xdvdapresent.Exists)
+            {
+                session.Log("XD VDA Present = " + xdvdapresent.Value);
+                if (xdvdapresent.Value == "1")
+                    return false; // disallow auto updates on XD VDAs
             }
 
             return true;
