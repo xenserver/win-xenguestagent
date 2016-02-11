@@ -91,8 +91,8 @@ namespace XenUpdater
             if (minver.CompareTo(version) > 0) // disallow on Cream, allow on Dundee and later
                 return false;
 
-            // if enabled key doesnt exist, "missing" is returned which is not "1"
-            if (enabled.ValueOrDefault("missing") != "1")
+            // if enabled key doesnt exist, "1" is returned (updates enabled)
+            if (enabled.ValueOrDefault("1") != "1")
             {
                 session.Log("Pool/Host disallowed updates");
                 return false;
