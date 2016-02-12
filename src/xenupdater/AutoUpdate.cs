@@ -50,6 +50,7 @@ namespace XenUpdater
         XenStoreItem licensed;
         XenStoreItem enabled;
         XenStoreItem update_url;
+        XenStoreItem xdvdapresent;
         Version version;
 
         private object GetReg(string key, string name, object def)
@@ -73,6 +74,7 @@ namespace XenUpdater
             licensed = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/licensed");
             enabled = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/enabled");
             update_url = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
+            xdvdapresent = new XenStoreItem(session, "data/xd/present");
 
             int major = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0); 
             int minor = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0);
@@ -91,10 +93,18 @@ namespace XenUpdater
             if (minver.CompareTo(version) > 0) // disallow on Cream, allow on Dundee and later
                 return false;
 
-            // if enabled key doesnt exist, "missing" is returned which is not "1"
-            if (enabled.ValueOrDefault("missing") != "1")
+            // disallow if enabled is present and not "1"
+            if (enabled.Exists)
             {
-                session.Log("Pool/Host disallowed updates");
+                if (enabled.Value != "1")
+                {
+                    session.Log("Pool/Host disallowed updates");
+                    return false;
+                }
+            }
+            else if (xdvdapresent.ValueOrDefault("missing") == "1")
+            {
+                session.Log("XenDesktop is present and updates are not specifically allowed");
                 return false;
             }
 
