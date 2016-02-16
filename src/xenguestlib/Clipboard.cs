@@ -30,17 +30,13 @@
  */
 
 using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Globalization;
 using System.Diagnostics;
 using System.Threading;
-using System.Runtime.InteropServices;
 using System.Management;
-using System.Windows.Forms;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using XenGuestLib;
-
 
 namespace xenwinsvc
 {
@@ -492,13 +488,20 @@ namespace xenwinsvc
             IntPtr consoletoken;
             void getConsoleAndSpawn()
             {
-                if (running && !FeatureAutoUpdate.IsUpdating())
+                if (running)
                 {
                     try {
                         session = Win32Impl.WTSGetActiveConsoleSessionId();
                         wmisession.Log("New session "+session.ToString());
                         if (session != 0xFFFFFFFF)
                         {
+                            wmisession.Log("Checking to see if XenDesktop is active");
+                            if (XenAppXenDesktop.ActiveConsoleSession(session))
+                            {
+                                wmisession.Log("Active XenDesktop session, not spawning worker");
+                                gotConsole = false;
+                                return;
+                            }
 
                             Win32Impl.AcquireSystemPrivilege(Win32Impl.SE_TCB_NAME);
                             consoletoken = Win32Impl.QueryUserToken(session);
@@ -514,6 +517,7 @@ namespace xenwinsvc
                 }
                 else
                 {
+                    wmisession.Log("Not got console");
                     gotConsole = false;
                 }
             }
