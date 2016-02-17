@@ -102,10 +102,13 @@ namespace XenUpdater
                     return false;
                 }
             }
-            else if (xdvdapresent.ValueOrDefault("missing") == "1")
+            else 
             {
-                session.Log("XenDesktop is present and updates are not specifically allowed");
-                return false;
+                if (xdvdapresent.ValueOrDefault("missing") == "1")
+                    session.Log("XenDesktop is present");
+                if (WmiBase.IsXDNonPersist)
+                    session.Log("XenDesktop is NonPersistant");
+                return !WmiBase.IsXDNonPersist;
             }
 
             if ((int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0) != 0)
@@ -216,6 +219,7 @@ namespace XenUpdater
             }
             catch (Exception e)
             {
+				session.Log("Exception: " + e.Message);
                 if (File.Exists(temp))
                     File.Delete(temp);
                 throw e;
@@ -305,22 +309,22 @@ namespace XenUpdater
             {
                 maxSize = maxsize;
                 complete = false;
+				error = false;
 
                 client = new WebClient();
                 client.DownloadFileCompleted += new System.ComponentModel.AsyncCompletedEventHandler(DownloadCompleted);
                 client.DownloadProgressChanged += new DownloadProgressChangedEventHandler(DownloadProgressChanged);
                 client.DownloadFileAsync(new Uri(url), file);
 
-                finished.WaitOne();
-                return complete;
+                finished.WaitOne(900000); // 15 min
+                return complete && !error;
             }
 
             private void DownloadCompleted(object sender, System.ComponentModel.AsyncCompletedEventArgs evt)
             {
                 if (evt.Cancelled || evt.Error != null)
-                    complete = false;
-                else
-                    complete = true;
+                    error = true;
+				complete = true;
                 finished.Set();
             }
 
@@ -328,7 +332,7 @@ namespace XenUpdater
             {
                 if (evt.BytesReceived > maxSize)
                 {
-                    complete = false;
+                    error = true;
                     client.CancelAsync();
                     finished.Set();
                 }
@@ -337,6 +341,7 @@ namespace XenUpdater
             private WebClient client;
             private int maxSize;
             private bool complete;
+			private bool error;
             private AutoResetEvent finished;
         }
 
