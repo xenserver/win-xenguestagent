@@ -101,6 +101,24 @@ namespace XenUpdater
                 return mobj;
             throw new Exception("No objects found");
         }
+
+        public static bool IsXDNonPersist
+        {
+            get
+            {
+                try
+                {
+                    ManagementObject obj = new ManagementObject("Citrix_VirtualDesktopInfo");
+                    obj.Get();
+                    return !((bool)obj["OSChangesPersist"]);
+                }
+                catch
+                {
+                    // XD not present or XD in persist mode
+                    return false;
+                }
+            }
+        }
     }
 
     class XenStoreSession : IDisposable
@@ -145,7 +163,7 @@ namespace XenUpdater
             // call EndSession if this name already exists
             try 
             {
-                ObjectQuery obj = new ObjectQuery(String.Format("SELECT * FROM CitrixXenStireSession WHERE Id=\"Citrix Xen Service: {0}\"", name));
+                ObjectQuery obj = new ObjectQuery(String.Format("SELECT * FROM CitrixXenStoreSession WHERE Id=\"Citrix Xen Service: {0}\"", name));
                 ManagementObjectSearcher mobs = new ManagementObjectSearcher(Base.Scope, obj); ;
                 Session = WmiBase.GetFirst(mobs.Get());
                 Session.InvokeMethod("EndSession", null);
