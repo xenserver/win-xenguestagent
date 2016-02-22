@@ -94,23 +94,24 @@ namespace XenUpdater
                 return false;
 
             // disallow if enabled is present and not "1"
-            if (enabled.Exists)
+            string value = enabled.ValueOrDefault("missing");
+            session.Log("parameters/enabled=" + value);
+            if (value == "missing")
             {
-                if (enabled.Value != "1")
-                {
-                    session.Log("Pool/Host disallowed updates");
-                    return false;
-                }
-            }
-            else 
-            {
+                // check if XD is present and non-persistant
                 if (xdvdapresent.ValueOrDefault("missing") == "1")
                     session.Log("XenDesktop is present");
                 if (WmiBase.IsXDNonPersist)
                 {
                     session.Log("XenDesktop is NonPersistant");
                     return false;
-                }                
+                }
+            }
+            else if (value == "0")
+            {
+                // check if host disallows updates
+                session.Log("Pool/Host disallowed updates:" + value);
+                return false;
             }
 
             if ((int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0) != 0)
