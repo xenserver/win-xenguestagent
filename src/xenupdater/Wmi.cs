@@ -108,9 +108,18 @@ namespace XenUpdater
             {
                 try
                 {
-                    ManagementObject obj = new ManagementObject(@"Root\Citrix\DesktopInformation", "Citrix_VirtualDesktopInfo", new ObjectGetOptions());
-                    obj.Get();
-                    return !((bool)obj["OSChangesPersist"]);
+                    ManagementScope ms = new ManagementScope(@"Root\Citrix\DesktopInformation");
+                    ms.Connect();
+                    ManagementPath mp = new ManagementPath("Citrix_VirtualDesktopInfo");
+                    ManagementClass mc = new ManagementClass(ms, mp, null);
+                    ManagementObjectCollection moc = mc.GetInstances();
+                    if (moc.Count < 1)
+                        return false;
+                    foreach (ManagementObject mobj in moc)
+                    {
+                        return !((bool)mobj["OSChangesPersist"]);
+                    }
+                    return false;
                 }
                 catch
                 {
