@@ -79,7 +79,7 @@ namespace XenUpdater
             int major = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0); 
             int minor = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0);
             int micro = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MicroVersion", 0);
-            int build = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "BuildNumber", 0);
+            int build = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "BuildVersion", 0);
             version = new Version(major, minor, micro, build);
         }
 
@@ -94,21 +94,24 @@ namespace XenUpdater
                 return false;
 
             // disallow if enabled is present and not "1"
-            if (enabled.Exists)
+            string value = enabled.ValueOrDefault("missing");
+            session.Log("parameters/enabled=" + value);
+            if (value == "missing")
             {
-                if (enabled.Value != "1")
-                {
-                    session.Log("Pool/Host disallowed updates");
-                    return false;
-                }
-            }
-            else 
-            {
+                // check if XD is present and non-persistant
                 if (xdvdapresent.ValueOrDefault("missing") == "1")
                     session.Log("XenDesktop is present");
                 if (WmiBase.IsXDNonPersist)
+                {
                     session.Log("XenDesktop is NonPersistant");
-                return !WmiBase.IsXDNonPersist;
+                    return false;
+                }
+            }
+            else if (value == "0")
+            {
+                // check if host disallows updates
+                session.Log("Pool/Host disallowed updates:" + value);
+                return false;
             }
 
             if ((int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0) != 0)
@@ -193,6 +196,8 @@ namespace XenUpdater
             updates.Reverse();
             if (updates.Count > 0)
                 return updates[0];
+
+            session.Log("No updates found");
             return null;
         }
 
