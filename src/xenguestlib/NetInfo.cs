@@ -51,6 +51,7 @@ namespace xenwinsvc
         XenStoreItem devicevif;
         XenStoreItem datavif;
         XenStoreItem numvif;
+        XenStoreItem vifStaticIpSetting;
         const string vifpath = "device/vif";
         static public void RefreshNetInfo()
         {
@@ -227,12 +228,19 @@ namespace xenwinsvc
         }
 
         WmiWatchListener vifListen;
+        WmiWatchListener vifStaticIpSettingListen;
 
 
         void onVifChanged(object nothing, EventArrivedEventArgs args)
         {
             needsRefresh = true;
         }
+
+        void onVifStaticIpSetting(object nothing, EventArrivedEventArgs args)
+        {
+            needsRefresh = true;
+        }
+
         NetworkAddressChangedEventHandler addrChangeHandler;
         public NetInfo(IExceptionHandler exceptionhandler)
         {
@@ -242,11 +250,13 @@ namespace xenwinsvc
             devicevif = wmisession.GetXenStoreItem("device/vif");
             datavif = wmisession.GetXenStoreItem("data/vif");
             numvif =  wmisession.GetXenStoreItem("data/num_vif");
+            vifStaticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
             needsRefresh = true;
             onAddrChange(null, null);
             addrChangeHandler = new NetworkAddressChangedEventHandler(onAddrChange);
             NetworkChange.NetworkAddressChanged += addrChangeHandler;
             vifListen = devicevif.Watch(onVifChanged);
+            vifStaticIpSettingListen = vifStaticIpSetting.Watch(onVifStaticIpSetting);
         }
 
         const string NETSETTINGSSTORE = @"SOFTWARE\Citrix\XenToolsNetSettings";
