@@ -79,7 +79,7 @@ namespace XenUpdater
             int major = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0); 
             int minor = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0);
             int micro = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MicroVersion", 0);
-            int build = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "BuildNumber", 0);
+            int build = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "BuildVersion", 0);
             version = new Version(major, minor, micro, build);
         }
 
@@ -196,6 +196,8 @@ namespace XenUpdater
             updates.Reverse();
             if (updates.Count > 0)
                 return updates[0];
+
+            session.Log("No updates found");
             return null;
         }
 
