@@ -50,6 +50,7 @@
     <Compile Include="..\..\src\xenguestlib\Communicator.cs" />
     <Compile Include="..\..\src\xenguestlib\EventLogger.cs" />
     <Compile Include="..\..\src\xenguestlib\Features.cs" />
+    <Compile Include="..\..\src\xenguestlib\FeatureStaticIpSetting.cs" />
     <Compile Include="..\..\src\xenguestlib\MemoryInfo.cs" />
     <Compile Include="..\..\src\xenguestlib\NetInfo.cs" />
     <Compile Include="..\..\src\xenguestlib\PVInstallation.cs" />
