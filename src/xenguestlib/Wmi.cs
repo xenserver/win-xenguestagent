@@ -154,6 +154,18 @@ namespace xenwinsvc
             }
         }
 
+        private ManagementObjectCollection win32NetworkAdapterConfiguration = null;
+        public ManagementObjectCollection Win32_NetworkAdapterConfiguration
+        {
+            get
+            {
+                 ManagementClass mc = new ManagementClass("Win32_NetworkAdapterConfiguration");
+                 mc.Scope.Options.EnablePrivileges = true;
+                 win32NetworkAdapterConfiguration = mc.GetInstances();
+                 return win32NetworkAdapterConfiguration;
+            }
+        }
+
         const int DEBUG_SIZE = 200;
         public void DebugMsg(string message) {
             Debug.Print(message);
