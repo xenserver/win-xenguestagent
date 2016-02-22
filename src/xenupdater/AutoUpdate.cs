@@ -107,8 +107,10 @@ namespace XenUpdater
                 if (xdvdapresent.ValueOrDefault("missing") == "1")
                     session.Log("XenDesktop is present");
                 if (WmiBase.IsXDNonPersist)
+                {
                     session.Log("XenDesktop is NonPersistant");
-                return !WmiBase.IsXDNonPersist;
+                    return false;
+                }                
             }
 
             if ((int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "DisableAutoUpdate", 0) != 0)

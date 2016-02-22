@@ -108,7 +108,7 @@ namespace XenUpdater
             {
                 try
                 {
-                    ManagementObject obj = new ManagementObject("Citrix_VirtualDesktopInfo");
+                    ManagementObject obj = new ManagementObject(@"Root\Citrix\DesktopInformation", "Citrix_VirtualDesktopInfo", new ObjectGetOptions());
                     obj.Get();
                     return !((bool)obj["OSChangesPersist"]);
                 }
