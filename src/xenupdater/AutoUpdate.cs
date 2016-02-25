@@ -163,9 +163,11 @@ namespace XenUpdater
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);
 
             if (String.IsNullOrEmpty(url))
+            {
+                session.Log("Update URL is Null or Empty");
                 throw new ArgumentNullException("URL is empty");
-            session.Log("Checking URL: " + url);
-            session.Log("For updates after: " + version.ToString());
+            }
+            session.Log("Checking URL: " + url + " for updates after: " + version.ToString());
 
             WebClient client = new WebClient();
             string contents = client.DownloadString(url);

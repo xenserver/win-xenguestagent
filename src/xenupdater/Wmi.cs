@@ -247,8 +247,10 @@ namespace XenUpdater
             {
                 try
                 {
-                    Session.GetValue(Path);
-                    return true;
+                    // GetValue returns null if key is not present,
+                    // empty string ig key is present but empty, or
+                    // the value of the string
+                    return Session.GetValue(Path) != null;
                 }
                 catch
                 {
