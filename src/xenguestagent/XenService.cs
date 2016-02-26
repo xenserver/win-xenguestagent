@@ -537,6 +537,11 @@ namespace xenwinsvc
 
         }
 
+        protected override void OnShutdown()
+        {
+            this.OnStop();
+            base.OnShutdown();
+        }
 
         static void Install(bool undo, string[] args)
         {
