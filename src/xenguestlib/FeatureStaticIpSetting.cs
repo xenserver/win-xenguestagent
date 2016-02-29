@@ -44,6 +44,7 @@ namespace xenwinsvc
     public class FeatureStaticIpSetting : Feature
     {
         XenStoreItem ipenabled;
+        XenStoreItem ipv6enabled;
         XenStoreItem mac;
         XenStoreItem address;
         XenStoreItem gateway;
@@ -55,12 +56,14 @@ namespace xenwinsvc
         XenStoreItem staticIpSetting;
 
         int last_time_ipenabled_state;
+        int last_time_ipv6enabled_state;
 
         public FeatureStaticIpSetting(IExceptionHandler exceptionhandler)
-            : base("StaticIpSetting", "", "xenserver/device/vif", false, exceptionhandler)
+            : base("StaticIpSetting", "control/feature-static-ip-setting", "xenserver/device/vif", false, exceptionhandler)
         {
             staticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
             last_time_ipenabled_state = 0;
+            last_time_ipv6enabled_state = 0;
         }
 
         private void resetError()
@@ -144,7 +147,7 @@ namespace xenwinsvc
             return retVal;
         }
 
-        private void SetStaticIpSetting()
+        private void SetStaticIpv4Setting()
         {
             string macaddr = mac.value;
 
@@ -194,6 +197,13 @@ namespace xenwinsvc
                     }
                 }
             }
+        }
+
+        private void SetStaticIpv6Setting()
+        {
+            string macaddr = mac.value;
+
+            resetError();
 
             if (address6.Exists() || gateway6.Exists())
             {
@@ -236,9 +246,11 @@ namespace xenwinsvc
             }
         }
 
-        private void UnsetStaticIpSetting()
+        private void UnsetStaticIpv4Setting()
         {
             string macaddr = mac.value;
+
+            resetError();
 
             foreach (ManagementObject nic in WmiBase.Singleton.Win32_NetworkAdapterConfiguration)
             {
@@ -249,12 +261,7 @@ namespace xenwinsvc
                     continue;
 
                 try{
-                    if (setIpv4Network(nic, "EnableDHCP", null, "set back to dhcp") != 0)
-                        return;
-
-                    string argument = "interface ipv6 reset";
-                    if (netshInvoke(argument) != 0)
-                        return;
+                    setIpv4Network(nic, "EnableDHCP", null, "set back to dhcp");
                 }
                 catch (Exception e)
                 {
@@ -267,6 +274,36 @@ namespace xenwinsvc
             }
         }
 
+        private void UnsetStaticIpv6Setting()
+        {
+            string macaddr = mac.value;
+
+            resetError();
+
+            foreach (ManagementObject nic in WmiBase.Singleton.Win32_NetworkAdapterConfiguration)
+            {
+                if (!(bool)nic["ipEnabled"])
+                    continue;
+
+                if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
+                    continue;
+
+                try{
+                    string argument = "interface ipv6 reset";
+                    netshInvoke(argument);
+                }
+                catch (Exception e)
+                {
+                    errorCode.value = "1";
+                    errorMsg.value = e.ToString();
+
+                    wmisession.Log("Exception " + e.ToString());
+                    return;
+                }
+            }
+        }
+
+
         protected override void onFeature()
         {
             if (controlKey.Exists())
@@ -277,7 +314,8 @@ namespace xenwinsvc
                     try
                     {
                         mac = wmisession.GetXenStoreItem(vif + "/static-ip-setting/mac");
-                        ipenabled = wmisession.GetXenStoreItem(vif + "/static-ip-setting/enabled");
+                        ipenabled   = wmisession.GetXenStoreItem(vif + "/static-ip-setting/enabled");
+                        ipv6enabled = wmisession.GetXenStoreItem(vif + "/static-ip-setting/enabled6");
                         errorCode = wmisession.GetXenStoreItem(vif + "/static-ip-setting/error-code");
                         errorMsg  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/error-msg");
 
@@ -289,16 +327,14 @@ namespace xenwinsvc
                                 {
                                     address  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address");
                                     gateway  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway");
-                                    address6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address6");
-                                    gateway6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway6");
 
-                                    SetStaticIpSetting();
+                                    SetStaticIpv4Setting();
 
                                     wmisession.Log("Static ip setting is assigned.");
                                 }
                                 else // remove static ip setting
                                 {
-                                    UnsetStaticIpSetting();
+                                    UnsetStaticIpv4Setting();
 
                                     wmisession.Log("Static ip setting is unassigned.");
                                 }
@@ -308,8 +344,36 @@ namespace xenwinsvc
 
                             ipenabled.Remove();
                         }
+
+                        if (ipv6enabled.Exists())
+                        {
+                            if (int.Parse(ipv6enabled.value) != last_time_ipv6enabled_state)
+                            {
+                                if (int.Parse(ipv6enabled.value) == 1) // assign static ipv6 setting
+                                {
+                                    address6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address6");
+                                    gateway6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway6");
+
+                                    SetStaticIpv6Setting();
+
+                                    wmisession.Log("Static ipv6 setting is assigned.");
+                                }
+                                else // remove static ipv6 setting
+                                {
+                                    UnsetStaticIpv6Setting();
+
+                                    wmisession.Log("Static ipv6 setting is unassigned.");
+                                }
+
+                                last_time_ipv6enabled_state = int.Parse(ipv6enabled.value);
+                            }
+
+                            ipv6enabled.Remove();
+                        }
                     }
                     catch { }; // Ignore failure, if node does not exist
+
+
                 }
             }
         }
