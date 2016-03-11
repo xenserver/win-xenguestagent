@@ -211,6 +211,8 @@ namespace XenUpdater
                 if (!down.Download(update.Url, temp, update.Size))
                     throw new ArgumentException("Update was incorrect size " + update.Url + " > " + update.Size.ToString() + " bytes");
 
+                session.Log("MSI downloaded to " + temp + ", checking signature");
+
                 if (!VerifyCertificate(temp))
                     throw new UnauthorizedAccessException("Certificate subject is invalid");
 
@@ -222,22 +224,30 @@ namespace XenUpdater
 				session.Log("Exception: " + e.Message);
                 if (File.Exists(temp))
                     File.Delete(temp);
-                throw e;
+                throw;
             }
         }
 
         private bool VerifyCertificate(string filename)
         {
-            X509Certificate signer = X509Certificate.CreateFromSignedFile(filename);
-            if (!signer.Subject.Contains("O=\"Citrix Systems, Inc.\""))
-                return false;
-            X509Certificate2 cert = new X509Certificate2(signer);
-            X509Chain chain = new X509Chain();
-            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
-            chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
-            chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
-            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
-            return chain.Build(cert);
+            try
+            {
+                X509Certificate signer = X509Certificate.CreateFromSignedFile(filename);
+                if (!signer.Subject.Contains("O=\"Citrix Systems, Inc.\""))
+                    return false;
+                X509Certificate2 cert = new X509Certificate2(signer);
+                X509Chain chain = new X509Chain();
+                chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+                chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
+                chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
+                chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+                return chain.Build(cert);
+            }
+            catch (CryptographicException e)
+            {
+                session.Log("Exception in VerifyCertificate, " + e.Message);
+                throw new CryptographicException(string.Format("Certificate check failure on installer, {0}", filename), e);
+            }
         }
 
         private string GetTarget()
