@@ -52,18 +52,12 @@ namespace xenwinsvc
         XenStoreItem gateway6;
         XenStoreItem errorCode;
         XenStoreItem errorMsg;
-
         XenStoreItem staticIpSetting;
-
-        int last_time_ipenabled_state;
-        int last_time_ipv6enabled_state;
 
         public FeatureStaticIpSetting(IExceptionHandler exceptionhandler)
             : base("StaticIpSetting", "control/feature-static-ip-setting", "xenserver/device/vif", false, exceptionhandler)
         {
             staticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
-            last_time_ipenabled_state = 0;
-            last_time_ipv6enabled_state = 0;
         }
 
         private void resetError()
@@ -321,25 +315,20 @@ namespace xenwinsvc
 
                         if (ipenabled.Exists())
                         {
-                            if (int.Parse(ipenabled.value) != last_time_ipenabled_state)
+                            if (int.Parse(ipenabled.value) == 1) // assign static ip setting
                             {
-                                if (int.Parse(ipenabled.value) == 1) // assign static ip setting
-                                {
-                                    address  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address");
-                                    gateway  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway");
+                                address  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address");
+                                gateway  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway");
 
-                                    SetStaticIpv4Setting();
+                                SetStaticIpv4Setting();
 
-                                    wmisession.Log("Static ip setting is assigned.");
-                                }
-                                else // remove static ip setting
-                                {
-                                    UnsetStaticIpv4Setting();
+                                wmisession.Log("Static ip setting is assigned.");
+                            }
+                            else // remove static ip setting
+                            {
+                                UnsetStaticIpv4Setting();
 
-                                    wmisession.Log("Static ip setting is unassigned.");
-                                }
-
-                                last_time_ipenabled_state = int.Parse(ipenabled.value);
+                                wmisession.Log("Static ip setting is unassigned.");
                             }
 
                             ipenabled.Remove();
@@ -347,27 +336,22 @@ namespace xenwinsvc
 
                         if (ipv6enabled.Exists())
                         {
-                            if (int.Parse(ipv6enabled.value) != last_time_ipv6enabled_state)
+                            if (int.Parse(ipv6enabled.value) == 1) // assign static ipv6 setting
                             {
-                                if (int.Parse(ipv6enabled.value) == 1) // assign static ipv6 setting
-                                {
-                                    address6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address6");
-                                    gateway6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway6");
+                                address6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address6");
+                                gateway6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway6");
 
-                                    SetStaticIpv6Setting();
+                                SetStaticIpv6Setting();
 
-                                    wmisession.Log("Static ipv6 setting is assigned.");
-                                }
-                                else // remove static ipv6 setting
-                                {
-                                    UnsetStaticIpv6Setting();
-
-                                    wmisession.Log("Static ipv6 setting is unassigned.");
-                                }
-
-                                last_time_ipv6enabled_state = int.Parse(ipv6enabled.value);
+                                wmisession.Log("Static ipv6 setting is assigned.");
                             }
+                            else // remove static ipv6 setting
+                            {
+                                UnsetStaticIpv6Setting();
 
+                                wmisession.Log("Static ipv6 setting is unassigned.");
+                            }
+                            
                             ipv6enabled.Remove();
                         }
                     }
