@@ -302,10 +302,9 @@ namespace xenwinsvc
         {
             if (controlKey.Exists())
             {
-                foreach (string vif in staticIpSetting.children)
+                try
                 {
-
-                    try
+                    foreach (string vif in staticIpSetting.children)
                     {
                         mac = wmisession.GetXenStoreItem(vif + "/static-ip-setting/mac");
                         ipenabled   = wmisession.GetXenStoreItem(vif + "/static-ip-setting/enabled");
@@ -355,10 +354,8 @@ namespace xenwinsvc
                             ipv6enabled.Remove();
                         }
                     }
-                    catch { }; // Ignore failure, if node does not exist
-
-
                 }
+            catch { }; // Ignore failure, if node does not exist
             }
         }
     }
