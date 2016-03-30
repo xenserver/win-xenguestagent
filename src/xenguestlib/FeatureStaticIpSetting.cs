@@ -98,7 +98,7 @@ namespace xenwinsvc
             {
                 if (data.Name.ToLower() == "returnvalue")
                 {
-                    if (int.Parse(data.Value.ToString()) != 0)
+                    if (uint.Parse(data.Value.ToString()) != 0)
                     {
                         errorCode.value = data.Value.ToString();
                         errorMsg.value = msgprefix + " failure";
