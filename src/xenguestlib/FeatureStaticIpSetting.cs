@@ -147,7 +147,7 @@ namespace xenwinsvc
 
             resetError();
 
-            if (address.Exists() || gateway.Exists())
+            if ((address.Exists() && address.value.Length != 0) || (gateway.Exists() && gateway.value.Length != 0))
             {
                 foreach (ManagementObject nic in WmiBase.Singleton.Win32_NetworkAdapterConfiguration)
                 {
@@ -158,7 +158,7 @@ namespace xenwinsvc
                         continue;
 
                     try{
-                        if (address.Exists())
+                        if (address.Exists() && address.value.Length != 0)
                         {
                             string ipv4, netmask;
                             convertIpv4Mask(address.value, out ipv4, out netmask);
@@ -172,7 +172,7 @@ namespace xenwinsvc
 
                         }
 
-                        if (gateway.Exists())
+                        if (gateway.Exists() && gateway.value.Length != 0)
                         {
                             ManagementBaseObject objNewGate = nic.GetMethodParameters("SetGateways");
                             objNewGate["DefaultIPGateway"]  = new string[] {gateway.value};
@@ -199,7 +199,7 @@ namespace xenwinsvc
 
             resetError();
 
-            if (address6.Exists() || gateway6.Exists())
+            if ((address6.Exists() && address6.value.Length != 0) || (gateway6.Exists() && gateway6.value.Length != 0))
             {
                 foreach (ManagementObject nic in WmiBase.Singleton.Win32_NetworkAdapterConfiguration)
                 {
@@ -210,7 +210,7 @@ namespace xenwinsvc
                         continue;
 
                     try{
-                        if (address6.Exists())
+                        if (address6.Exists() && address6.value.Length != 0)
                         {
                             string argument = "interface ipv6 set address {0} {1}";
                             argument = string.Format(argument, nic["interfaceIndex"], address6.value);
@@ -219,7 +219,7 @@ namespace xenwinsvc
                                 return;
                         }
 
-                        if (gateway6.Exists())
+                        if (gateway6.Exists() && gateway6.value.Length != 0)
                         {
                             string argument = "interface ipv6 add route ::/0 {0} {1}";
                             argument = string.Format(argument, nic["interfaceIndex"], gateway6.value);
@@ -312,7 +312,7 @@ namespace xenwinsvc
                         errorCode = wmisession.GetXenStoreItem(vif + "/static-ip-setting/error-code");
                         errorMsg  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/error-msg");
 
-                        if (ipenabled.Exists())
+                        if (ipenabled.Exists() && ipenabled.value.Length != 0)
                         {
                             if (int.Parse(ipenabled.value) == 1) // assign static ip setting
                             {
@@ -329,11 +329,10 @@ namespace xenwinsvc
 
                                 wmisession.Log("Static ip setting is unassigned.");
                             }
-
-                            ipenabled.Remove();
                         }
+                        if (ipenabled.Exists()) ipenabled.Remove();
 
-                        if (ipv6enabled.Exists())
+                        if (ipv6enabled.Exists() && ipv6enabled.value.Length != 0)
                         {
                             if (int.Parse(ipv6enabled.value) == 1) // assign static ipv6 setting
                             {
@@ -350,9 +349,8 @@ namespace xenwinsvc
 
                                 wmisession.Log("Static ipv6 setting is unassigned.");
                             }
-                            
-                            ipv6enabled.Remove();
                         }
+                        if (ipv6enabled.Exists()) ipv6enabled.Remove();
                     }
                 }
             catch { }; // Ignore failure, if node does not exist
