@@ -586,8 +586,18 @@ namespace xenwinsvc
         {
             Trace.WriteLine("NETINFO StorePVNetworkSettingsToEmulatedDevicesOrSave");
             using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
+            using (RegistryKey store = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE))
             using (RegistryKey pvstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\PV"))
             {
+                try
+                {
+                    if (((String)store.GetValue("Status")).Equals("DontUpdate")) {
+                        Trace.WriteLine("Do not update stored values");
+                        return;
+                    }
+                }
+                catch{}
+
                 NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface nic in nics)
                 {
@@ -643,9 +653,22 @@ namespace xenwinsvc
                                     Debug.Print("Found mac");
                                     using (RegistryKey ifacekey = macstore.CreateSubKey(matchmac))
                                     {
-                                        Debug.Print("Create mac");
-                                        ifacekey.SetValue("ifacetype", "PV", RegistryValueKind.String);
-                                        FromServiceIfaceToStore(SrcNetCfgInstanceId, ifacekey);
+                                        //We only want to save over the top of entries we believe to
+                                        //be PV, to avoid overwriting emulated entries when a new
+                                        //PV device is installed.
+                                        string ifacetype=(string)ifacekey.GetValue("ifacetype", "NONE");
+                                        Trace.WriteLine(matchmac+" ifacetype = " + ifacetype);
+                                        if (! ifacetype.Equals("Emulated"))
+                                        {
+                                            Debug.Print("Create mac");
+                                            ifacekey.SetValue("ifacetype", "PV", RegistryValueKind.String);
+                                            FromServiceIfaceToStore(SrcNetCfgInstanceId, ifacekey);
+                                        }
+                                        else
+                                        {
+                                            Trace.WriteLine("Don't overwrite emulated");
+                                            continue;
+                                        }
                                     }
                                 }
                                 try
@@ -691,12 +714,15 @@ namespace xenwinsvc
                                 }
                                 Trace.WriteLine("NETINFO Store " + macaddr);
                                 FromStoreToServiceIface(ifacekey, NetCfgInstanceId);
+                                ifacekey.SetValue("ifacetype", "Emulated", RegistryValueKind.String);
+                                string ifacetype = (string)ifacekey.GetValue("ifacetype", "NONE");
+                                Trace.WriteLine("ifacetype = " + ifacetype);
+
                             }
                             else {
                                 continue;
                             }
                         }
-                        macstore.DeleteSubKeyTree(macaddr);
                     }
                     catch
                     {
