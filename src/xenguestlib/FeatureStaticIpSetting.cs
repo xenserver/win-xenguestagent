@@ -41,6 +41,152 @@ using NetFwTypeLib;
 
 namespace xenwinsvc
 {
+    public class IpSettingItem
+    {
+        public IpSettingItem(string mac, string ipversion, string DHCPEnable, string ip, string mask, string gateway)
+        {
+            _mac = mac;
+            _ipversion = ipversion;
+            _DHCPEnable = DHCPEnable;
+            _ip = ip;
+            _mask = mask;
+            _gateway = gateway;
+        }
+        private string _mac;
+        public string MAC
+        {
+            set { _mac = value; }
+            get { return _mac; }
+        }
+        private string _ipversion;
+        public string IPVERSION
+        {
+            set { _ipversion = value; }
+            get { return _ipversion; }
+        }
+        private string _DHCPEnable;
+        public string DHCPENABLE
+        {
+            set { _DHCPEnable = value; }
+            get { return _DHCPEnable; }
+        }
+        private string _ip;
+        public string IP
+        {
+            set { _ip = value; }
+            get { return _ip; }
+        }
+        private string _mask;
+        public string MASK
+        {
+            set { _mask = value; }
+            get { return _mask; }
+        }
+        private string _gateway;
+        public string GATEWAY
+        {
+            set { _gateway = value; }
+            get { return _gateway; }
+        }
+    }
+
+    public class IpSettings
+    {
+        static List <IpSettingItem> iplist = new List<IpSettingItem>();
+        private static readonly string IP_INFO_REGISTRY_KEY_PATH = "HKEY_LOCAL_MACHINE\\Software\\Citrix\\Xentools";
+        private static readonly string IP_INFO_REGISTRY_VALUE_NAME = "ipSettings";
+        private static readonly string IP_INFO_COMPONENT_SEPARATOR = ","; // separate component of a ip configurations, like mac, ipv4/ipv6, etc
+        private static readonly int IP_INFO_COMPONENT_NUMBER = 5; // the number of the ip info components, like mac, ipv4/6, etc
+  
+        // Add new ip information and save into registry
+        public static void addIpSeting(string mac, string DHCPEnable, string ipversion, string ip, string mask, string gateway)
+        {
+            bool existed = false;
+            foreach (var ipsetting in iplist)
+            {
+                if (ipsetting.MAC == mac && ipsetting.IPVERSION == ipversion)
+                {
+                    existed = true;
+                    break;
+                }
+            }
+            if( existed == false )
+            {
+                iplist.Add(new IpSettingItem(mac, ipversion, DHCPEnable, ip, mask, gateway));
+                Save();
+            }
+        }
+
+        // Get ip address from list, match if mac and ipversion match
+        public static bool getIPseting(string mac, string ipversion, ref IpSettingItem settings)
+        {
+            foreach (var ipsetting in iplist)
+            {
+                if (ipsetting.MAC == mac && ipsetting.IPVERSION == ipversion)
+                {
+                    settings.DHCPENABLE = ipsetting.DHCPENABLE;
+                    settings.IP = ipsetting.IP;
+                    settings.GATEWAY = ipsetting.GATEWAY;
+                    settings.MASK = ipsetting.MASK;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Remove an ip information and save to registry
+        public static bool removeIPseting(string mac, string ipversion)
+        {
+            foreach (var ipsetting in iplist)
+            {
+                if (ipsetting.MAC == mac && ipsetting.IPVERSION == ipversion)
+                {
+                    iplist.Remove(ipsetting);
+                    Save();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+       // Load saved ip infomation from register to datastructure
+        public static void load()
+        {
+            
+            string[] strIpInfoArray = (string[]) Registry.GetValue(IP_INFO_REGISTRY_KEY_PATH,IP_INFO_REGISTRY_VALUE_NAME,null);
+
+            if(null ==  strIpInfoArray ) return; // The registry key  or the registry name does not exist. 
+
+            foreach (var item  in strIpInfoArray)
+            {
+                string[] infors = item.Split(new string[] {IP_INFO_COMPONENT_SEPARATOR}, StringSplitOptions.None);
+                if (infors.Length >= IP_INFO_COMPONENT_NUMBER)
+                {
+                    iplist.Add(new IpSettingItem(infors[0], infors[1], infors[2], infors[3], infors[4], infors[5]));
+                }
+             
+            }
+        }
+
+        // Save the ip information to registry
+        private static void Save()
+        { 
+            // The ip Informations would be sored int the reigstry in following format
+            // Mac, ipv4/ipv6, "DHCPEnable", "ip", "mask", "gatway" 
+            // Mac, ipv4/ipv6, "DHCPEnable", "ip", "mask", "gatway"
+            var strIpList = new List<string>();
+            foreach (var setting in iplist)
+            {
+                string ipInfoRegistryValue = "";
+                ipInfoRegistryValue = ipInfoRegistryValue + setting.MAC + IP_INFO_COMPONENT_SEPARATOR  + setting.IPVERSION + IP_INFO_COMPONENT_SEPARATOR + setting.DHCPENABLE + IP_INFO_COMPONENT_SEPARATOR + setting.IP + IP_INFO_COMPONENT_SEPARATOR + setting.MASK + IP_INFO_COMPONENT_SEPARATOR + setting.GATEWAY;
+                strIpList.Add(ipInfoRegistryValue);
+            }
+      
+            Registry.SetValue(IP_INFO_REGISTRY_KEY_PATH,IP_INFO_REGISTRY_VALUE_NAME,strIpList.ToArray());
+        
+        }
+
+    }
     public class FeatureStaticIpSetting : Feature
     {
         XenStoreItem ipenabled;
@@ -57,6 +203,7 @@ namespace xenwinsvc
         public FeatureStaticIpSetting(IExceptionHandler exceptionhandler)
             : base("StaticIpSetting", "control/feature-static-ip-setting", "xenserver/device/vif", false, exceptionhandler)
         {
+            IpSettings.load();
             staticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
         }
 
@@ -157,6 +304,8 @@ namespace xenwinsvc
                     if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                         continue;
 
+                    IpSettings.addIpSeting(nic["macAddress"].ToString(), nic["DHCPEnabled"].ToString(), "IPV4", "", "", "");
+
                     try{
                         if (address.Exists() && address.value.Length != 0)
                         {
@@ -209,6 +358,8 @@ namespace xenwinsvc
                     if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                         continue;
 
+                    IpSettings.addIpSeting(nic["macAddress"].ToString(), nic["DHCPEnabled"].ToString(), "IPV6", "", "", "");
+                    
                     try{
                         if (address6.Exists() && address6.value.Length != 0)
                         {
@@ -254,8 +405,13 @@ namespace xenwinsvc
                 if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                     continue;
 
+                IpSettingItem settings = new IpSettingItem(nic["macAddress"].ToString(), "IPV4", "", "", "", "");
+                if (IpSettings.getIPseting(nic["macAddress"].ToString(), "IPV4", ref settings) == false)
+                    return;
+
                 try{
                     setIpv4Network(nic, "EnableDHCP", null, "set back to dhcp");
+                    IpSettings.removeIPseting(nic["macAddress"].ToString(), "IPV4");
                 }
                 catch (Exception e)
                 {
@@ -282,9 +438,14 @@ namespace xenwinsvc
                 if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                     continue;
 
+                IpSettingItem settings = new IpSettingItem(nic["macAddress"].ToString(), "IPV4", "", "", "", "");
+                if (IpSettings.getIPseting(nic["macAddress"].ToString(), "IPV4", ref settings) == false)
+                    return;
+
                 try{
                     string argument = "interface ipv6 reset";
                     netshInvoke(argument);
+                    IpSettings.removeIPseting(nic["macAddress"].ToString(), "IPV6");
                 }
                 catch (Exception e)
                 {
