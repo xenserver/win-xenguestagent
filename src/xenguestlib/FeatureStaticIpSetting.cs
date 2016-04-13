@@ -296,6 +296,7 @@ namespace xenwinsvc
 
             if ((address.Exists() && address.value.Length != 0) || (gateway.Exists() && gateway.value.Length != 0))
             {
+                bool FoundDevice = false;
                 foreach (ManagementObject nic in WmiBase.Singleton.Win32_NetworkAdapterConfiguration)
                 {
                     if (!(bool)nic["ipEnabled"])
@@ -303,6 +304,8 @@ namespace xenwinsvc
 
                     if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                         continue;
+
+                    FoundDevice = true;
 
                     IpSettings.addIpSeting(nic["macAddress"].ToString(), nic["DHCPEnabled"].ToString(), "IPV4", "", "", "");
 
@@ -339,6 +342,14 @@ namespace xenwinsvc
                         return;
                     }
                 }
+
+                if (!FoundDevice)
+                {
+                    errorCode.value = "101";
+                    errorMsg.value = "Device not ready to use or ipEnabled not been set";
+                    wmisession.Log("Device not ready to use or ipEnabled not been set");
+                    return;
+                }
             }
         }
 
@@ -350,6 +361,7 @@ namespace xenwinsvc
 
             if ((address6.Exists() && address6.value.Length != 0) || (gateway6.Exists() && gateway6.value.Length != 0))
             {
+                bool FoundDevice = false;
                 foreach (ManagementObject nic in WmiBase.Singleton.Win32_NetworkAdapterConfiguration)
                 {
                     if (!(bool)nic["ipEnabled"])
@@ -357,6 +369,8 @@ namespace xenwinsvc
 
                     if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                         continue;
+
+                    FoundDevice = true;
 
                     IpSettings.addIpSeting(nic["macAddress"].ToString(), nic["DHCPEnabled"].ToString(), "IPV6", "", "", "");
                     
@@ -387,6 +401,13 @@ namespace xenwinsvc
                         wmisession.Log("Exception " + e.ToString());
                         return;
                     }
+                }
+                if (!FoundDevice)
+                {
+                    errorCode.value = "101";
+                    errorMsg.value = "Device not ready to use or ipEnabled not been set";
+                    wmisession.Log("Device not ready to use or ipEnabled not been set");
+                    return;
                 }
             }
         }
