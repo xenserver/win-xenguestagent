@@ -459,8 +459,8 @@ namespace xenwinsvc
                 if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
                     continue;
 
-                IpSettingItem settings = new IpSettingItem(nic["macAddress"].ToString(), "IPV4", "", "", "", "");
-                if (IpSettings.getIPseting(nic["macAddress"].ToString(), "IPV4", ref settings) == false)
+                IpSettingItem settings = new IpSettingItem(nic["macAddress"].ToString(), "IPV6", "", "", "", "");
+                if (IpSettings.getIPseting(nic["macAddress"].ToString(), "IPV6", ref settings) == false)
                     return;
 
                 try{
