@@ -390,7 +390,14 @@ namespace xenwinsvc
                             argument = string.Format(argument, nic["interfaceIndex"], gateway6.value);
 
                             if (netshInvoke(argument) != 0)
-                                return;
+                            {
+                                resetError();
+                                argument = "interface ipv6 set route ::/0 {0} {1}";
+                                argument = string.Format(argument, nic["interfaceIndex"], gateway6.value);
+
+                                if (netshInvoke(argument) != 0)
+                                    return;
+                            }
                         }
                     }
                     catch (Exception e)
