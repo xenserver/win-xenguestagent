@@ -169,8 +169,17 @@ namespace XenUpdater
             }
             session.Log("Checking URL: " + url + " for updates after: " + version.ToString());
 
-            WebClient client = new WebClient();
-            string contents = client.DownloadString(url);
+            string contents;
+            try
+            {
+                WebClient client = new WebClient();
+                contents = client.DownloadString(url);
+            }
+            catch (Exception e)
+            {
+                session.Log("Download failed " + e.Message);
+                throw;
+            }
 
             string arch = (Win32Impl.Is64BitOS() && (!Win32Impl.IsWOW64())) ? "x64" : "x86";
             List<Update> updates = new List<Update>();
