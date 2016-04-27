@@ -34,6 +34,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Security.Principal;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Threading;
 
 namespace XenUpdater
 {
@@ -46,6 +50,10 @@ namespace XenUpdater
         }
         static int Main(string[] args)
         {
+            int result = -2;
+            if (SingleApp.IsRunning())
+                return -3;
+
             try
             {
                 bool add = false;
@@ -97,28 +105,63 @@ namespace XenUpdater
                     AutoUpdate auto = new AutoUpdate();
                     auto.CheckNow();
                 }
-                return 0;
+                result = 0;
             }
             catch (UnauthorizedAccessException e)
             {
                 System.Diagnostics.Debug.Print("Exception: " + e.ToString());
-                return (int)HRESULT.E_ACCESSDENIED;
+                result = (int)HRESULT.E_ACCESSDENIED;
             }
             catch (FormatException e)
             {
                 System.Diagnostics.Debug.Print("Exception: " + e.ToString());
-                return (int)HRESULT.E_INVALIDARG;
+                result = (int)HRESULT.E_INVALIDARG;
             }
             catch (Exception e)
             {
                 System.Diagnostics.Debug.Print("Exception: " + e.ToString());
-                return -1; // TODO: Return the HRESULT of this exception
+                result = -1; // TODO: Return the HRESULT of this exception
             }
+
+            SingleApp.Close();
+            return result;
         }
 
         static bool IsElevated()
         {
             return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
+        internal static class SingleApp
+        {
+            internal static bool IsRunning()
+            {
+                string guid = ((GuidAttribute)Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(GuidAttribute), false).GetValue(0)).Value.ToString();
+                var semaphoreName = @"Global\" + guid;
+                try
+                {
+                    __semaphore = Semaphore.OpenExisting(semaphoreName, SemaphoreRights.Synchronize);
+
+                    Close();
+                    return true;
+                }
+                catch
+                {
+                    __semaphore = new Semaphore(0, 1, semaphoreName);
+                    return false;
+                }
+            }
+
+            internal static void Close()
+            {
+                if (__semaphore != null)
+                {
+                    __semaphore.Close();
+                    __semaphore = null;
+                }
+            }
+
+            private static Semaphore __semaphore;
         }
     }
 }
