@@ -169,7 +169,7 @@ namespace XenUpdater
             }
             session.Log("Checking URL: " + url + " for updates after: " + version.ToString());
 
-            string contents;
+            string contents = null;
             try
             {
                 WebClient client = new WebClient();
@@ -180,6 +180,8 @@ namespace XenUpdater
                 session.Log("Download failed " + e.Message);
                 throw;
             }
+            if (String.IsNullOrEmpty(contents))
+                return null;
 
             string arch = (Win32Impl.Is64BitOS() && (!Win32Impl.IsWOW64())) ? "x64" : "x86";
             List<Update> updates = new List<Update>();
@@ -190,13 +192,13 @@ namespace XenUpdater
                 try
                 {
                     Update update = new Update(line);
+                    session.Log("Update Entry " + update.ToString());
                     if (update.Arch != arch)
                         continue;
                     if (update.Version.CompareTo(version) <= 0)
                         continue;
 
                     updates.Add(update);
-                    session.Log("Update Entry :" + update.ToString());
                 }
                 catch (Exception e)
                 {
@@ -219,7 +221,10 @@ namespace XenUpdater
             try
             {
                 if (File.Exists(temp))
+                {
+                    session.Log("Deleting existing MSI at " + temp);
                     File.Delete(temp);
+                }
 
                 session.Log("Downloading: " + update.Url);
 
@@ -239,7 +244,10 @@ namespace XenUpdater
             {
 				session.Log("Exception: " + e.Message);
                 if (File.Exists(temp))
+                {
+                    session.Log("Deleting file at " + temp);
                     File.Delete(temp);
+                }
                 throw;
             }
         }
