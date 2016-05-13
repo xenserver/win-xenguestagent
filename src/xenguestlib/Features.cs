@@ -555,7 +555,14 @@ namespace xenwinsvc
             : base("Terminal Services Reset", "control/feature-ts2", "data/ts", false, exceptionhandler)
         {
             datats = wmisession.GetXenStoreItem("data/ts");
-            Disposer.Add(WmiBase.Singleton.ListenForEvent("__InstanceModificationEvent", new EventArrivedEventHandler(onFeatureWrapper)));
+            try 
+            {
+                Disposer.Add(WmiBase.Singleton.ListenForEvent("__InstanceModificationEvent", new EventArrivedEventHandler(onFeatureWrapper)));
+            }
+            catch 
+            {
+                Trace.WriteLine("Terminal Services namespace not available on this version of windows");
+            }
             onFeature();
         }
 
