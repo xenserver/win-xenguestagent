@@ -306,9 +306,9 @@ namespace XenUpdater
                 Size = int.Parse(s[2]);
 
                 if (s.Length < 4)
-                    Arch = FromUrl(s[0]);
+                    Arch = ParseArch(s[0]);
                 else
-                    Arch = s[3];
+                    Arch = ParseArch(s[3]);
 
                 if (s.Length < 5)
                     Checksum = -1;
@@ -317,7 +317,7 @@ namespace XenUpdater
 
                 FileName = Url.Substring(s[0].LastIndexOf('/') + 1);
             }
-            private string FromUrl(string s)
+            private string ParseArch(string s)
             {
                 if (s.Contains("x86") || s.Contains("X86"))
                     return "x86";
