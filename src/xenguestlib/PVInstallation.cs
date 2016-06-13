@@ -1,4 +1,4 @@
-/* Copyright (c) Citrix Systems Inc.
+﻿/* Copyright (c) Citrix Systems Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, 
@@ -114,6 +114,7 @@ namespace xenwinsvc
             return false;
          
         }
+
         bool xenwinsvc.IRefresh.Refresh(bool force)
         {
             lock (pvinstalllock)
@@ -126,9 +127,7 @@ namespace xenwinsvc
                 {
                     Feature.Advertise(wmisession);
                 }
-                if ((needsinstalling && !installing())
-                    || ((pvinstalledStatus != FeatureLicensed.IsLicensed())
-                         && (pvinstalledStatus == true)))
+                if ((!installing()) && (needsinstalling || (FeatureLicensed.IsLicensed() !=pvinstalledStatus)))
                 {
                     RefreshXenstore();
                     return true;
