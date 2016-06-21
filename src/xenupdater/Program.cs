@@ -62,7 +62,7 @@ namespace XenUpdater
 
                 if (!IsElevated())
                 {
-                    System.Diagnostics.Debug.Print("XenUpdater.exe must be run by an elevated administrator account");
+                    Program.Log("XenUpdater.exe must be run by an elevated administrator account");
                     return (int)HRESULT.E_ACCESSDENIED;
                 }
 
@@ -109,21 +109,20 @@ namespace XenUpdater
             }
             catch (UnauthorizedAccessException e)
             {
-                System.Diagnostics.Debug.Print("Exception: " + e.ToString());
+                Program.Log("Exception: " + e.ToString());
                 result = (int)HRESULT.E_ACCESSDENIED;
             }
             catch (FormatException e)
             {
-                System.Diagnostics.Debug.Print("Exception: " + e.ToString());
+                Program.Log("Exception: " + e.ToString());
                 result = (int)HRESULT.E_INVALIDARG;
             }
             catch (Exception e)
             {
-                System.Diagnostics.Debug.Print("Exception: " + e.ToString());
+                Program.Log("Exception: " + e.ToString());
                 result = -1; // TODO: Return the HRESULT of this exception
             }
 
-            SingleApp.Close();
             return result;
         }
 
@@ -132,36 +131,45 @@ namespace XenUpdater
             return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
         }
 
+        static void Log(string msg)
+        {
+            System.Diagnostics.Debug.Print(msg); 
+            try
+            {
+                XenStoreSession session = new XenStoreSession("XenUpdater");
+                session.Log(msg);
+            }
+            catch
+            {
+            }
+        }
+
         internal static class SingleApp
         {
             internal static bool IsRunning()
             {
-                string guid = ((GuidAttribute)Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(GuidAttribute), false).GetValue(0)).Value.ToString();
-                var semaphoreName = @"Global\" + guid;
-                try
-                {
-                    __semaphore = Semaphore.OpenExisting(semaphoreName, SemaphoreRights.Synchronize);
+                string mfg = Branding.GetString("BRANDING_manufacturer");
+                if (String.IsNullOrEmpty(mfg))
+                    mfg = "Citrix";
 
-                    Close();
-                    return true;
-                }
-                catch
-                {
-                    __semaphore = new Semaphore(0, 1, semaphoreName);
+                string app = Branding.GetString("BRANDING_updater");
+                if (String.IsNullOrEmpty(app))
+                    app = "ManagementAgentUpdater";
+
+                mfg = mfg.Replace(' ', '_');
+                app = app.Replace(' ', '_');
+
+                string name = @"Global\" + mfg + "_" + app + "_SingleInstanceMutex";
+                bool created;
+                __mutex = new Mutex(true, name, out created);
+                if (created)
                     return false;
-                }
+
+                Program.Log("Another instance is running");
+                return true;
             }
 
-            internal static void Close()
-            {
-                if (__semaphore != null)
-                {
-                    __semaphore.Close();
-                    __semaphore = null;
-                }
-            }
-
-            private static Semaphore __semaphore;
+            private static Mutex __mutex;
         }
     }
 }
