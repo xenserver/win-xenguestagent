@@ -163,7 +163,7 @@ namespace XenUpdater
         {
             string url = Branding.GetString("BRANDING_updaterURL");
             if (String.IsNullOrEmpty(url))
-                url = "https://pvupdates.vmd.citrix.com/updates.tsv";
+                url = "https://pvupdates.vmd.citrix.com/updates.v2.tsv";
             if (update_url.Exists)
                 url = update_url.Value;
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);
