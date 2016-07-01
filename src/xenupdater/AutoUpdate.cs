@@ -88,7 +88,6 @@ namespace XenUpdater
             // if licensed key doesnt exist, "missing" is returned which is not "1"
             if (licensed.ValueOrDefault("missing") != "1")
                 return false;
-
             Version minver = new Version(6, 6, 0, 0);
             if (minver.CompareTo(version) > 0) // disallow on Cream, allow on Dundee and later
                 return false;
@@ -127,6 +126,13 @@ namespace XenUpdater
         {
             if (!CheckIsAllowed())
                 return; // updates disallowed, reasons already logged if important
+            
+            string driverInstall = (string)GetReg("HKEY_LOCAL_MACHINE\\Software\\Citrix\\XenTools\\AutoUpdate", "InstallDrivers", "YES");
+            if (!(driverInstall.Equals("YES") || driverInstall.Equals("NO")))
+            {
+                session.Log("Unexpected value of AutoUpdate\\InstallDrivers, assuming you meant YES");
+                driverInstall = "YES";
+            }
 
             Update update = CheckForUpdates();
             if (update == null)
@@ -143,7 +149,7 @@ namespace XenUpdater
             start.UseShellExecute = false;
             start.RedirectStandardError = true;
             start.RedirectStandardOutput = true;
-            start.Arguments = " /i \"" + temp + "\" TARGETDIR=\"" + target + "\" /log \"" + Path.Combine(target, "agent3log.log") + "\" /qn";
+            start.Arguments = " /i \"" + temp + "\" TARGETDIR=\"" + target + "\" /log \"" + Path.Combine(target, "agent3log.log") + "\" /qn ALLOWDRIVERINSTALL="+driverInstall;
 
             session.Log("Killing all XenDPriv.exe processes");
             foreach (var process in Process.GetProcessesByName("XenDPriv.exe"))
