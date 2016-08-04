@@ -444,7 +444,7 @@ namespace xenwinsvc
                 lock (servicestatelock) { 
                     if (running)
                     {
-                        clipboardhandler.HandleSessionChange(changeDescription.Reason);
+                        clipboardhandler.HandleSessionChange(changeDescription.Reason, (uint)changeDescription.SessionId);
                     }
                 }
                 base.OnSessionChange(changeDescription);

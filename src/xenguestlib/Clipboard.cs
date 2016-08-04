@@ -475,7 +475,6 @@ namespace xenwinsvc
             void restartWorker()
             {
                 wmisession.Log("Restart worker");
-
                 workerProcess.Stop(false);
                 workerProcess = null;
 
@@ -604,7 +603,7 @@ namespace xenwinsvc
                 try
                 {
                     if ((reason == System.ServiceProcess.SessionChangeReason.ConsoleConnect) || 
-                        (reason == System.ServiceProcess.SessionChangeReason.SessionLogon)) 
+                        (reason == System.ServiceProcess.SessionChangeReason.SessionLogon))
                     {
                         handleConsoleChanged();
                     }
@@ -664,9 +663,10 @@ namespace xenwinsvc
 
         }
 
-        public void HandleSessionChange(System.ServiceProcess.SessionChangeReason changeargs) {
+        public void HandleSessionChange(System.ServiceProcess.SessionChangeReason changeargs, uint sessionId) {
             lock (statelock) {
-                if (running) {
+                if (running && 
+                    (sessionId==Win32Impl.WTSGetActiveConsoleSessionId())) {
                     state.HandleConsoleChanged(changeargs);
                 }
             }
