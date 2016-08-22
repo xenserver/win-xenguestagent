@@ -51,6 +51,7 @@ namespace XenUpdater
         XenStoreItem enabled;
         XenStoreItem update_url;
         XenStoreItem xdvdapresent;
+        XenStoreItem allowdriverupdate;
         Version version;
 
         private object GetReg(string key, string name, object def)
@@ -74,6 +75,7 @@ namespace XenUpdater
             licensed = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/licensed");
             enabled = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/enabled");
             update_url = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
+            allowdriverupdate = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/allow-driver-install");
             xdvdapresent = new XenStoreItem(session, "data/xd/present");
 
             int major = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0); 
@@ -126,12 +128,37 @@ namespace XenUpdater
         {
             if (!CheckIsAllowed())
                 return; // updates disallowed, reasons already logged if important
-            
-            string driverInstall = (string)GetReg("HKEY_LOCAL_MACHINE\\Software\\Citrix\\XenTools\\AutoUpdate", "InstallDrivers", "YES");
-            if (!(driverInstall.Equals("YES") || driverInstall.Equals("NO")))
+
+            bool poolAllowsDriverInstall = true;
+            string allowDriverUpdateValue;
+
+            try
             {
-                session.Log("Unexpected value of AutoUpdate\\InstallDrivers, assuming you meant YES");
-                driverInstall = "YES";
+                allowDriverUpdateValue = allowdriverupdate.Value;
+                if (allowDriverUpdateValue.Equals("0") || allowDriverUpdateValue.Equals("false")) 
+                {
+                    poolAllowsDriverInstall = false;
+                }
+            }
+            catch
+            {
+                poolAllowsDriverInstall = true;
+            }
+
+            string driverInstall = "NO";
+
+            if (poolAllowsDriverInstall)
+            {
+                driverInstall = (string)GetReg("HKEY_LOCAL_MACHINE\\Software\\Citrix\\XenTools\\AutoUpdate", "InstallDrivers", Branding.GetString("allowDriverUpdate"));
+                if (!(driverInstall.Equals("YES") || driverInstall.Equals("NO")))
+                {
+                    session.Log("Unexpected value of AutoUpdate\\InstallDrivers, assuming you meant " + Branding.GetString("allowDriverUpdate"));
+                    driverInstall = Branding.GetString("allowDriverUpdate");
+                }
+            }
+            else
+            {
+                session.Log("Driver update not allowed by pool");
             }
 
             Update update = CheckForUpdates();
