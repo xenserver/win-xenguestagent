@@ -149,11 +149,11 @@ namespace XenUpdater
 
             if (poolAllowsDriverInstall)
             {
-                driverInstall = (string)GetReg("HKEY_LOCAL_MACHINE\\Software\\Citrix\\XenTools\\AutoUpdate", "InstallDrivers", Branding.GetString("allowDriverUpdate"));
+                driverInstall = (string)GetReg("HKEY_LOCAL_MACHINE\\Software\\Citrix\\XenTools\\AutoUpdate", "InstallDrivers", Branding.GetString("BRANDING_allowDriverUpdate"));
                 if (!(driverInstall.Equals("YES") || driverInstall.Equals("NO")))
                 {
-                    session.Log("Unexpected value of AutoUpdate\\InstallDrivers, assuming you meant " + Branding.GetString("allowDriverUpdate"));
-                    driverInstall = Branding.GetString("allowDriverUpdate");
+                    session.Log("Unexpected value of AutoUpdate\\InstallDrivers, assuming you meant " + Branding.GetString("BRANDING_allowDriverUpdate"));
+                    driverInstall = Branding.GetString("BRANDING_allowDriverUpdate");
                 }
             }
             else
