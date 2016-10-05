@@ -85,6 +85,28 @@ namespace XenUpdater
             version = new Version(major, minor, micro, build);
         }
 
+        public bool CheckIfInstalling()
+        {
+            try
+            {
+                string installstate;
+
+                installstate = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenToolsInstaller", "InstallStatus", "Installed");
+                if (installstate == null)
+                    installstate = "Installed";
+
+                if (installstate.Equals("Installed"))
+                {
+                    return false;
+                }
+                return true;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
         private bool CheckIsAllowed()
         {
             // if licensed key doesnt exist, "missing" is returned which is not "1"
@@ -93,6 +115,12 @@ namespace XenUpdater
             Version minver = new Version(6, 6, 0, 0);
             if (minver.CompareTo(version) > 0) // disallow on Cream, allow on Dundee and later
                 return false;
+
+            if (CheckIfInstalling())
+            {
+                session.Log("Don't auto-update whilst a management agent is installing");
+                return false;
+            }
 
             // disallow if enabled is present and not "1"
             string value = enabled.ValueOrDefault("missing");
