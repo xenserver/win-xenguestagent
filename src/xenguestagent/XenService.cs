@@ -99,8 +99,15 @@ namespace xenwinsvc
         {
      
             Debug.Print("GuestAgent Init");
-            tlog = new TimeDateTraceListener("guest");
-            Trace.Listeners.Add(tlog); Trace.WriteLine("This is all");
+            try
+            {
+                tlog = new TimeDateTraceListener("guest");
+                Trace.Listeners.Add(tlog); Trace.WriteLine("This is all");
+            }
+            catch (Exception e)
+            {
+                EventLog.WriteEntry("Failed to create management agent debug log : " + e.ToString());
+            }
             this.ServiceName = Branding.Instance.getString("BRANDING_guestAgent");
             this.CanStop = true;
             this.CanHandleSessionChangeEvent = true;
