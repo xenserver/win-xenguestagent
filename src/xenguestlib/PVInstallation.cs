@@ -233,7 +233,6 @@ namespace xenwinsvc
 
             osboottype = wmisession.GetXenStoreItem("attr/os/boottype");
             ossystem32 = wmisession.GetXenStoreItem("attr/os/system32_dir");
-            oshal = wmisession.GetXenStoreItem("attr/os/hal");
             osbootoptions = wmisession.GetXenStoreItem("attr/os_boot/options");
 
 
@@ -370,8 +369,6 @@ namespace xenwinsvc
             osboottype.value = System.Windows.Forms.SystemInformation.BootMode.ToString();
             ossystem32.value = Environment.GetFolderPath(Environment.SpecialFolder.System);
 
-            FileVersionInfo halinfo = FileVersionInfo.GetVersionInfo(Environment.GetFolderPath(Environment.SpecialFolder.System) + "\\hal.dll");
-            oshal.value = halinfo.InternalName;
             osbootoptions.value = (string)Registry.GetValue("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control", "SystemStartOptions", "none");
             guestdotnetframework.value = System.Environment.Version.ToString();
             
