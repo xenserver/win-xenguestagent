@@ -52,6 +52,7 @@ namespace XenUpdater
         XenStoreItem update_url;
         XenStoreItem xdvdapresent;
         XenStoreItem allowdriverupdate;
+        XenStoreItem uuid;
         Version version;
 
         private object GetReg(string key, string name, object def)
@@ -77,6 +78,7 @@ namespace XenUpdater
             update_url = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/update_url");
             allowdriverupdate = new XenStoreItem(session, "/guest_agent_features/Guest_agent_auto_update/parameters/allow-driver-install");
             xdvdapresent = new XenStoreItem(session, "data/xd/present");
+            uuid = new XenStoreItem(session, "vm");
 
             int major = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MajorVersion", 0); 
             int minor = (int)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "MinorVersion", 0);
@@ -219,8 +221,16 @@ namespace XenUpdater
             string url = Branding.GetString("BRANDING_updaterURL");
             if (String.IsNullOrEmpty(url))
                 url = "https://pvupdates.vmd.citrix.com/updates.v2.tsv";
+            
+            string identify = (string)GetReg("HKEY_LOCAL_MACHINE\\Software\\Citrix\\XenTools\\AutoUpdate", "Identify", "NO");
+            if (identify.Equals("YES"))
+            {
+                url += "?id=" + uuid.Value.Substring(4);
+            }
+
             if (update_url.Exists)
                 url = update_url.Value;
+            
             url = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools", "update_url", url);
 
             if (String.IsNullOrEmpty(url))
