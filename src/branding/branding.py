@@ -91,7 +91,8 @@ branding = {
         "ioUpdAllow" : "Allow automatic I/O driver updates by the management agent",
         "ioUpdDisallow" : "Disallow automatic I/O driver updates by the management agent",
         "updDisclaim" : "Automatic updates may be overridden by pool policies",
-        "whqlWarn" : "Customers using Windows Update for I/O driver updates should not select this option"
+        "whqlWarn" : "Customers using Windows Update for I/O driver updates should not select this option",
+        "userAgent" : "Citrix XenServer AutoUpdate",
 }
 
 filenames = {

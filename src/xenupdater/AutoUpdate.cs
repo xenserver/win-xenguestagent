@@ -244,6 +244,8 @@ namespace XenUpdater
             try
             {
                 WebClient client = new WebClient();
+                session.Log("This is my user agent : " + Branding.GetString("BRANDING_userAgent"));
+                client.Headers.Add("User-Agent", Branding.GetString("BRANDING_userAgent"));
                 contents = client.DownloadString(url);
             }
             catch (Exception e)
@@ -417,6 +419,7 @@ namespace XenUpdater
 				error = false;
 
                 client = new WebClient();
+                client.Headers.Add("User-Agent", Branding.GetString("BRANDING_userAgent"));
                 client.DownloadFileCompleted += new System.ComponentModel.AsyncCompletedEventHandler(DownloadCompleted);
                 client.DownloadProgressChanged += new DownloadProgressChangedEventHandler(DownloadProgressChanged);
                 client.DownloadFileAsync(new Uri(url), file);
