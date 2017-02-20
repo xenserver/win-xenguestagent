@@ -55,7 +55,7 @@ namespace XenUpdater
         XenStoreItem uuid;
         Version version;
 
-        private object GetReg(string key, string name, object def)
+        static private object GetReg(string key, string name, object def)
         {
             try
             {
@@ -243,9 +243,10 @@ namespace XenUpdater
             string contents = null;
             try
             {
+                string userAgent = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools\\AutoUpdate", "UserAgent", Branding.GetString("BRANDING_userAgent"));
                 WebClient client = new WebClient();
-                session.Log("This is my user agent : " + Branding.GetString("BRANDING_userAgent"));
-                client.Headers.Add("User-Agent", Branding.GetString("BRANDING_userAgent"));
+                session.Log("This is my user agent : " + userAgent);
+                client.Headers.Add("User-Agent", userAgent);
                 contents = client.DownloadString(url);
             }
             catch (Exception e)
@@ -418,8 +419,9 @@ namespace XenUpdater
                 complete = false;
 				error = false;
 
+                string userAgent = (string)GetReg("HKEY_LOCAL_MACHINE\\SOFTWARE\\Citrix\\XenTools\\AutoUpdate", "UserAgent", Branding.GetString("BRANDING_userAgent"));
                 client = new WebClient();
-                client.Headers.Add("User-Agent", Branding.GetString("BRANDING_userAgent"));
+                client.Headers.Add("User-Agent", userAgent);
                 client.DownloadFileCompleted += new System.ComponentModel.AsyncCompletedEventHandler(DownloadCompleted);
                 client.DownloadProgressChanged += new DownloadProgressChangedEventHandler(DownloadProgressChanged);
                 client.DownloadFileAsync(new Uri(url), file);
