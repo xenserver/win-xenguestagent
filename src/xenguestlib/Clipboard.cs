@@ -484,7 +484,6 @@ namespace xenwinsvc
                 }
             }
 
-            IntPtr consoletoken;
             void getConsoleAndSpawn()
             {
                 if (running)
@@ -501,12 +500,19 @@ namespace xenwinsvc
                                 gotConsole = false;
                                 return;
                             }
-
                             Win32Impl.AcquireSystemPrivilege(Win32Impl.SE_TCB_NAME);
-                            consoletoken = Win32Impl.QueryUserToken(session);
-                            wmisession.Log("Got new session token");
-                            gotConsole = true;
-                            spawnWorker();
+                            IntPtr consoletoken = IntPtr.Zero;
+                            try
+                            {
+                                consoletoken = Win32Impl.QueryUserToken(session);
+                                wmisession.Log("Got new session token");
+                                gotConsole = true;
+                                spawnWorker(consoletoken);
+                            }
+                            finally
+                            {
+                                Win32Impl.Close(consoletoken);
+                            }
                         }
                     }
                     catch(Exception e) {
@@ -557,7 +563,7 @@ namespace xenwinsvc
             }
 
 
-            void spawnWorker()
+            void spawnWorker(IntPtr consoletoken)
             {
                 if (running)
                 {
@@ -584,13 +590,6 @@ namespace xenwinsvc
                 }
 
             }
-
-
-            void closeConsoleToken()
-            {
-                Win32Impl.Close(this.consoletoken);
-            }
-            
 
             public WaitHandle Run()
             {
