@@ -233,15 +233,65 @@ namespace XenUpdater
         }
     }
 
-    class XenStoreItem
+    public interface IXenStoreItemFactory
     {
+        ACXenStoreItem newXenStoreItem(string StoreLocation);
+        void Log(string message);
+    }
+
+    class XenStoreItemFactory : IXenStoreItemFactory
+    {
+        private XenStoreSession session;
+
+        public XenStoreItemFactory(string SessionName)
+        {
+            session = new XenStoreSession(SessionName);
+        }
+
+        public ACXenStoreItem newXenStoreItem(string StoreLocation)
+        {
+            return new XenStoreItem(session, StoreLocation);
+        }
+        
+        public void Log(string message) 
+        {
+            session.Log(message);
+        }
+    }
+
+    public abstract class ACXenStoreItem
+    {
+        abstract public bool Exists 
+        { 
+            get; 
+        }
+        
+        abstract public string Value 
+        {
+            get;
+            set;
+        }
+        
+        public abstract string ValueOrDefault(string def);
+        
+        abstract public string Path 
+        { 
+            get; 
+        }
+        
+        public abstract void Remove();
+    }
+
+    class XenStoreItem : ACXenStoreItem
+    {
+        string _path;
         public XenStoreItem(XenStoreSession session, string path)
         {
-            Path = path;
+            _path = path;
             Session = session;
         }
 
-        public bool Exists
+        override public bool Exists
         {
             get
             {
@@ -258,7 +308,8 @@ namespace XenUpdater
                 }
             }
         }
-        public string Value
+
+        public override string Value
         {
             get
             {
@@ -271,7 +322,8 @@ namespace XenUpdater
                 Session.SetValue(Path, value);
             }
         }
-        public string ValueOrDefault(string def)
+
+        override public string ValueOrDefault(string def)
         {
             try
             {
@@ -283,9 +335,15 @@ namespace XenUpdater
             }
         }
 
-        public string Path { get; private set; }
+        override public string Path 
+        { 
+            get
+            {
+                return _path;
+            }
+        }
 
-        public void Remove()
+        override public void Remove()
         {
             Session.RemoveValue(Path);
         }

@@ -9,6 +9,19 @@ using BrandSupport;
 
 namespace XenUpdater
 {
+    public interface IBranding
+    {
+        string GetString(string key);
+    }
+
+    public class CBranding : IBranding
+    {
+        public string GetString(string key)
+        {
+            return Branding.GetString(key);
+        }
+    }
+
     public class Branding
     {
         private static BrandingControl instance;
