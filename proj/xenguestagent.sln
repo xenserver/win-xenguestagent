@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IXenConsoleComm", "IXenCons
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XenConsoleComm", "XenConsoleComm\XenConsoleComm.csproj", "{020A3A41-FA72-431E-BE52-62FBD58B54CE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XenConsoleCommTests", "XenConsoleCommTests\XenConsoleCommTests.csproj", "{49DF93D3-A448-471F-9114-8DED188960BB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,6 +60,10 @@ Global
 		{020A3A41-FA72-431E-BE52-62FBD58B54CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{020A3A41-FA72-431E-BE52-62FBD58B54CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{020A3A41-FA72-431E-BE52-62FBD58B54CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49DF93D3-A448-471F-9114-8DED188960BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49DF93D3-A448-471F-9114-8DED188960BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49DF93D3-A448-471F-9114-8DED188960BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49DF93D3-A448-471F-9114-8DED188960BB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
