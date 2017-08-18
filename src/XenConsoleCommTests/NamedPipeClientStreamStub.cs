@@ -33,11 +33,15 @@ namespace XenConsoleComm.Tests.Stubs
 
         public void Connect()
         {
+            if (IsConnected)
+                throw new InvalidOperationException("The client is already connected.");
             if (!PipeServerIsReadWrite)
                 throw new UnauthorizedAccessException("Access to the path is denied.");
 
             IsConnected = true;
         }
+
+        public void Dispose() { }
 
         public IAsyncResult BeginRead(
             byte[] buffer,

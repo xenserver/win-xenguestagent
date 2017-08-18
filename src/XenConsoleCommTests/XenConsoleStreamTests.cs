@@ -11,17 +11,21 @@ namespace XenConsoleComm.Tests
     public class XenConsoleStreamTests
     {
         [Test]
-        public void Constructor_AsyncReadNotCompleted()
+        public void Start_AsyncReadNotCompleted_Ok()
         {
             // Arrange
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub();
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
 
             // Act
-            new XenConsoleStream(pipeClient);
+            xcs.Start();
 
             // Assert
             Assert.AreEqual(0, pipeClient.ReadsCompleted);
             Assert.AreEqual(1, pipeClient.asyncReads.Count);
+            Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
+            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
             foreach (KeyValuePair<string, int> read in pipeClient.asyncReads)
             {
                 Assert.AreEqual(0, read.Value);
@@ -29,16 +33,18 @@ namespace XenConsoleComm.Tests
         }
 
         [Test]
-        public void Constructor_PipeServerIsNotReadWrite_UnauthorizedAccessExceptionThrown()
+        public void Start_PipeServerIsNotReadWrite_UnauthorizedAccessExceptionThrown()
         {
             // Arrange
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub {
                 PipeServerIsReadWrite = false
             };
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
 
             // Assert
             Assert.That(() =>
-                new XenConsoleStream(pipeClient), // Act
+                xcs.Start(), // Act
                 Throws.Exception
                     .TypeOf<UnauthorizedAccessException>()
                     .With.Property("Message")
@@ -47,7 +53,7 @@ namespace XenConsoleComm.Tests
         }
 
         [Test]
-        public void Constructor_AsyncReadCompleted_NoCallback()
+        public void Start_AsyncReadCompleted_NoCallback()
         {
             // Arrange
             byte[] tmpBuffer = new byte[NamedPipeClientStreamStub.BufferSize];
@@ -75,9 +81,11 @@ namespace XenConsoleComm.Tests
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub {
                 ReadsReturn = readsReturn
             };
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
 
             // Act
-            XenConsoleStream xenConsoleStream = new XenConsoleStream(pipeClient);
+            xcs.Start();
             Thread.Sleep(100);
 
             // Assert
@@ -93,10 +101,12 @@ namespace XenConsoleComm.Tests
                 tmpBuffer,
                 pipeClient.chunksRead[0]
             );
+            Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
+            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
         }
 
         [Test]
-        public void Constructor_MultipleAsyncReadsCompleted_Callback()
+        public void Start_MultipleAsyncReadsCompleted_Callback()
         {
             // Arrange
             byte[] tmpBuffer = new byte[NamedPipeClientStreamStub.BufferSize];
@@ -114,9 +124,11 @@ namespace XenConsoleComm.Tests
                 ReadsReturn = readsReturn,
                 InvokeCallback = true
             };
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
 
             // Act
-            XenConsoleStream xenConsoleStream = new XenConsoleStream(pipeClient);
+            xcs.Start();
             Thread.Sleep(200);
 
             // Assert
@@ -143,6 +155,46 @@ namespace XenConsoleComm.Tests
             Assert.AreEqual(readsReturn.Length + 1, pipeClient.asyncReads.Count);
             Assert.AreEqual(readsReturn.Length, readsCompleted);
             Assert.AreEqual(readsReturn.Length, pipeClient.ReadsCompleted);
+            Assert.AreEqual(readsReturn.Length, userObj.XCMessageHandlerCalled);
+            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
+        }
+
+        [Test]
+        public void Start_NoPipeDisconnectedEventSubscribers_InvalidOperationExceptionThrown()
+        {
+            // Arrange
+            NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub();
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+
+            // Assert
+            Assert.That(() =>
+                xcs.Start(), // Act
+                Throws.Exception
+                    .TypeOf<InvalidOperationException>()
+                    .With.Property("Message")
+                    .EqualTo(
+                        "Event 'PipeDisconnected' must have at least "
+                        + "1 subscriber before attempting to connect."
+                    )
+            );
+        }
+
+        [Test]
+        public void Start_CalledTwice_InvalidOperationExceptionThrown()
+        {
+            // Arrange
+            NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub();
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
+
+            // Assert
+            Assert.That(() =>
+            { xcs.Start(); xcs.Start(); }, // Act
+                Throws.Exception
+                    .TypeOf<InvalidOperationException>()
+                    .With.Property("Message")
+                    .EqualTo("The client is already connected.")
+            );
         }
 
         [Test]
@@ -161,9 +213,11 @@ namespace XenConsoleComm.Tests
                 ReadsReturn = readsReturn,
                 InvokeCallback = true
             };
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
 
             // Act
-            XenConsoleStream xenConsoleStream = new XenConsoleStream(pipeClient);
+            xcs.Start();
 
             // Assert
             Thread.Sleep(100);
@@ -175,6 +229,33 @@ namespace XenConsoleComm.Tests
                         NamedPipeClientStreamStub.BufferSize
                     ))
             );
+            Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
+            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
+        }
+
+        [Test]
+        public void OnXenConsoleMessageReceived_PipeClosed_Ok()
+        {
+            // Arrange
+            // 0-length message indicates pipe has disconnected
+            string[] readsReturn = new string[] { "" };
+
+            NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub
+            {
+                ReadsReturn = readsReturn,
+                InvokeCallback = true
+            };
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            AUserClass userObj = new AUserClass(xcs);
+
+            // Act
+            xcs.Start();
+            Thread.Sleep(100);
+
+            // Assert
+            Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
+            Assert.AreEqual(1, userObj.PipeDisconnectHandlerCalled);
+            Assert.IsFalse(xcs.IsConnected);
         }
     }
 }

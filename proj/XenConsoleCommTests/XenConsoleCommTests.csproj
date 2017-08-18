@@ -76,6 +76,7 @@
     <Compile Include="..\..\src\XenConsoleCommTests\Properties\AssemblyInfo.cs" />
     <Compile Include="..\..\src\XenConsoleCommTests\XenConsoleStreamTests.cs" />
     <Compile Include="..\..\src\XenConsoleCommTests\RandomString.cs" />
+    <Compile Include="..\..\src\XenConsoleCommTests\AUserClass.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IXenConsoleComm\IXenConsoleComm.csproj">
