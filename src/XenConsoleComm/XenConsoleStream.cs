@@ -12,10 +12,10 @@ namespace XenConsoleComm
         public event EventHandler MessageReceived;
         public event EventHandler PipeDisconnected;
 
-        private readonly INamedPipeClientStream _xenConsoleClient;
+        private INamedPipeClientStream _xenConsoleClient;
         private byte[] _readBuffer;
         private Func<string, bool> _messageForwardingRule = null;
-        private readonly int _readBufferSize = 1024;
+        private readonly ushort _readBufferSize = 1024;
 
         public XenConsoleStream() : this(
             new NamedPipeClientStreamWrapper(
@@ -28,14 +28,20 @@ namespace XenConsoleComm
         internal XenConsoleStream(INamedPipeClientStream pipeClient)
         {
             _xenConsoleClient = pipeClient;
+            _readBuffer = new byte[_readBufferSize];
+        }
 
-            if (!_xenConsoleClient.IsConnected)
+        public void Start()
+        {
+            if (PipeDisconnected == null)
             {
-                _xenConsoleClient.Connect();
+                throw new InvalidOperationException(
+                    "Event 'PipeDisconnected' must have at least "
+                    + "1 subscriber before attempting to connect."
+                );
             }
 
-            _readBuffer = new byte[_readBufferSize];
-
+            _xenConsoleClient.Connect();
             _xenConsoleClient.BeginRead(
                 _readBuffer,
                 0,
@@ -51,6 +57,17 @@ namespace XenConsoleComm
             set { _messageForwardingRule = value; }
         }
 
+        public bool IsConnected
+        {
+            get
+            {
+                if (_xenConsoleClient != null)
+                    return _xenConsoleClient.IsConnected;
+                else
+                    return false;
+            }
+        }
+
         internal void OnXenConsoleMessageReceived(IAsyncResult ar)
         {
             EventHandler msgReceived = MessageReceived;
@@ -59,24 +76,26 @@ namespace XenConsoleComm
 
             int bytesRead = _xenConsoleClient.EndRead(ar);
 
+            if (bytesRead == 0)
+            {
+                _xenConsoleClient.Dispose();
+                _xenConsoleClient = null;
+                MessageReceived = null;
+                PipeDisconnected = null;
+
+                if (pipeDiscon != null)
+                    pipeDiscon(this, EventArgs.Empty);
+
+                return;
+            }
+
             if (!_xenConsoleClient.IsMessageComplete)
                 throw new NotSupportedException(String.Format(
                     "Message is larger than {0} bytes.",
                     _readBufferSize
                 ));
 
-            // Console.WriteLine("Message received is {0} bytes.", bytesRead);
-            /*
-            // TODO: Dispose pipe/make object unusable
-            if (bytesRead == 0)
-            {
-                if (pipeDiscon != null)
-                    pipeDiscon(this, EventArgs.Empty);
-
-                return;
-            }
-            */
-            string message = Encoding.UTF8.GetString(_readBuffer, 0, bytesRead).Trim();
+            string message = Encoding.UTF8.GetString(_readBuffer, 0, bytesRead);
 
             if (msgReceived != null
                     && (rule == null

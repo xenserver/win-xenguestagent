@@ -54,6 +54,11 @@ namespace XenConsoleComm.Wrappers
             _pipeStream.ReadMode = PipeTransmissionMode.Message;
         }
 
+        public void Dispose()
+        {
+            _pipeStream.Dispose();
+        }
+
         public IAsyncResult BeginRead(
             byte[] buffer,
             int offset,

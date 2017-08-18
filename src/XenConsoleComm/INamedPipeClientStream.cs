@@ -5,6 +5,7 @@ namespace XenConsoleComm.Interfaces
     internal interface INamedPipeClientStream
     {
         void Connect();
+        void Dispose();
         IAsyncResult BeginRead(
             byte[] buffer,
             int offset,
