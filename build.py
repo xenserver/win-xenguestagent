@@ -152,6 +152,8 @@ if __name__ == '__main__':
     copyfiles('xenguestagent','xenguestagent', debug[sys.argv[1]])
     copyfiles('xenguestagent','xendpriv', debug[sys.argv[1]])
     copyfiles('xenguestagent','xenupdater', debug[sys.argv[1]])
+    copyfiles('xenguestagent','IXenConsoleComm', debug[sys.argv[1]])
+    copyfiles('xenguestagent','XenConsoleComm', debug[sys.argv[1]])
 
     listfile = callfnout(['git','ls-files'])
     archive('xenguestagent\\source.tgz', listfile.splitlines(), tgz=True)
