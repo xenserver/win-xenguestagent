@@ -13,6 +13,8 @@ namespace IXenConsoleComm
     {
         event EventHandler MessageReceived;
         event EventHandler PipeDisconnected;
+        void Start();
+        bool IsConnected { get; }
         Func<string, bool> MessageForwardingRule { get; set; }
     }
 
