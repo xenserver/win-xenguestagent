@@ -20,7 +20,7 @@ namespace XenConsoleComm
         public XenConsoleStream() : this(
             new NamedPipeClientStreamWrapper(
                 ".",
-                "XenConsoleMonitor",
+                "xencons",
                 PipeDirection.InOut,
                 PipeOptions.Asynchronous
             )) { }

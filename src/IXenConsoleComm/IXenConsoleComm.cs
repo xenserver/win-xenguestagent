@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Reflection;
 
 namespace IXenConsoleComm
@@ -13,6 +14,8 @@ namespace IXenConsoleComm
     {
         event EventHandler MessageReceived;
         event EventHandler PipeDisconnected;
+        void Start();
+        bool IsConnected { get; }
         Func<string, bool> MessageForwardingRule { get; set; }
     }
 
@@ -26,14 +29,23 @@ namespace IXenConsoleComm
     public class XenConsoleStreamFactory
     {
         private static readonly Type _type;
+        private static readonly string dllPathRegKey =
+            @"SOFTWARE\Citrix\XenTools\XenConsoleComm";
 
         private XenConsoleStreamFactory() { }
 
         private static string FindDllPath()
         {
-            // TODO: Search for the file
-            return
-                @"C:\Users\Administrator\workspace\win-xenguestagent\proj\XenConsoleComm\bin\Debug\XenConsoleComm.dll";
+            using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(dllPathRegKey))
+            {
+                if (rk == null)
+                    throw new DllNotFoundException(
+                        "Registry key '{0}' does not exist; "
+                        + "path to XenConsoleComm.dll unknown."
+                    );
+
+                return (string)rk.GetValue("DllPath");
+            }
         }
 
         private static void ThrowIfVersionsIncompatible(string dllPath)
