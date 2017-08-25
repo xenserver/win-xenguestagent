@@ -80,6 +80,7 @@ namespace XenConsoleComm
             {
                 _xenConsoleClient.Dispose();
                 _xenConsoleClient = null;
+                _readBuffer = null;
                 MessageReceived = null;
                 Disconnected = null;
 

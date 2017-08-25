@@ -40,10 +40,11 @@ namespace IXenConsoleComm
             using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(dllPathRegKey))
             {
                 if (rk == null)
-                    throw new DllNotFoundException(
+                    throw new DllNotFoundException(String.Format(
                         "Registry key '{0}' does not exist; "
-                        + "path to XenConsoleComm.dll unknown."
-                    );
+                        + "path to XenConsoleComm.dll unknown.",
+                        dllPathRegKey
+                    ));
 
                 return (string)rk.GetValue("DllPath");
             }
