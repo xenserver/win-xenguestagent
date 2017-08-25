@@ -13,7 +13,7 @@ namespace IXenConsoleComm
     public interface IXenConsoleStream
     {
         event EventHandler MessageReceived;
-        event EventHandler PipeDisconnected;
+        event EventHandler Disconnected;
         void Start();
         bool IsConnected { get; }
         Func<string, bool> MessageForwardingRule { get; set; }
@@ -24,6 +24,7 @@ namespace IXenConsoleComm
         void AttachToXenConsoleStream(IXenConsoleStream xcStream);
         void DetachFromXenConsoleStream();
         void XenConsoleMessageEventHandler(object sender, EventArgs e);
+        void XenConsoleDisconnectedEventHandler(object sender, EventArgs e);
     }
 
     public class XenConsoleStreamFactory
@@ -39,10 +40,11 @@ namespace IXenConsoleComm
             using (RegistryKey rk = Registry.LocalMachine.OpenSubKey(dllPathRegKey))
             {
                 if (rk == null)
-                    throw new DllNotFoundException(
+                    throw new DllNotFoundException(String.Format(
                         "Registry key '{0}' does not exist; "
-                        + "path to XenConsoleComm.dll unknown."
-                    );
+                        + "path to XenConsoleComm.dll unknown.",
+                        dllPathRegKey
+                    ));
 
                 return (string)rk.GetValue("DllPath");
             }

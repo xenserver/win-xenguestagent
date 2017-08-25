@@ -10,7 +10,7 @@ namespace XenConsoleComm
     public class XenConsoleStream : IXenConsoleStream
     {
         public event EventHandler MessageReceived;
-        public event EventHandler PipeDisconnected;
+        public event EventHandler Disconnected;
 
         private INamedPipeClientStream _xenConsoleClient;
         private byte[] _readBuffer;
@@ -33,10 +33,10 @@ namespace XenConsoleComm
 
         public void Start()
         {
-            if (PipeDisconnected == null)
+            if (Disconnected == null)
             {
                 throw new InvalidOperationException(
-                    "Event 'PipeDisconnected' must have at least "
+                    "Event 'Disconnected' must have at least "
                     + "1 subscriber before attempting to connect."
                 );
             }
@@ -71,7 +71,7 @@ namespace XenConsoleComm
         internal void OnXenConsoleMessageReceived(IAsyncResult ar)
         {
             EventHandler msgReceived = MessageReceived;
-            EventHandler pipeDiscon = PipeDisconnected;
+            EventHandler discon = Disconnected;
             Func<string, bool> rule = _messageForwardingRule;
 
             int bytesRead = _xenConsoleClient.EndRead(ar);
@@ -80,11 +80,12 @@ namespace XenConsoleComm
             {
                 _xenConsoleClient.Dispose();
                 _xenConsoleClient = null;
+                _readBuffer = null;
                 MessageReceived = null;
-                PipeDisconnected = null;
+                Disconnected = null;
 
-                if (pipeDiscon != null)
-                    pipeDiscon(this, EventArgs.Empty);
+                if (discon != null)
+                    discon(this, EventArgs.Empty);
 
                 return;
             }
