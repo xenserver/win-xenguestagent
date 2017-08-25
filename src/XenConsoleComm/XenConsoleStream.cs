@@ -51,6 +51,37 @@ namespace XenConsoleComm
             );
         }
 
+        public void Dispose()
+        {
+            Close();
+        }
+
+        public void Close()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing)
+                return;
+
+            EventHandler discon = Disconnected;
+
+            if (_xenConsoleClient != null)
+            {
+                _xenConsoleClient.Dispose();
+                _xenConsoleClient = null;
+            }
+            _readBuffer = null;
+            MessageReceived = null;
+            Disconnected = null;
+
+            if (discon != null)
+                discon(this, EventArgs.Empty);
+        }
+
         public Func<string, bool> MessageForwardingRule
         {
             get { return _messageForwardingRule; }
@@ -78,15 +109,7 @@ namespace XenConsoleComm
 
             if (bytesRead == 0)
             {
-                _xenConsoleClient.Dispose();
-                _xenConsoleClient = null;
-                _readBuffer = null;
-                MessageReceived = null;
-                Disconnected = null;
-
-                if (discon != null)
-                    discon(this, EventArgs.Empty);
-
+                Dispose();
                 return;
             }
 

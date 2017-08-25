@@ -10,7 +10,7 @@ namespace IXenConsoleComm
         void Reply(string value);
     }
 
-    public interface IXenConsoleStream
+    public interface IXenConsoleStream : IDisposable
     {
         event EventHandler MessageReceived;
         event EventHandler Disconnected;
