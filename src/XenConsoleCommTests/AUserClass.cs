@@ -7,7 +7,7 @@ namespace XenConsoleComm.Tests.Helpers
     {
         private IXenConsoleStream _xcStream;
         private int _xcMessageHandlerCalled = 0;
-        private int _pipeDisconnectHandlerCalled = 0;
+        private int _disconnectHandlerCalled = 0;
 
         public AUserClass(IXenConsoleStream xcStream)
         {
@@ -23,7 +23,7 @@ namespace XenConsoleComm.Tests.Helpers
 
             _xcStream = xcStream;
             _xcStream.MessageReceived += new EventHandler(XenConsoleMessageEventHandler);
-            _xcStream.PipeDisconnected += new EventHandler(PipeDisconnectedEventHandler);
+            _xcStream.Disconnected += new EventHandler(XenConsoleDisconnectedEventHandler);
         }
 
         public void DetachFromXenConsoleStream()
@@ -32,7 +32,7 @@ namespace XenConsoleComm.Tests.Helpers
                 return;
 
             _xcStream.MessageReceived -= new EventHandler(XenConsoleMessageEventHandler);
-            _xcStream.PipeDisconnected -= new EventHandler(PipeDisconnectedEventHandler);
+            _xcStream.Disconnected -= new EventHandler(XenConsoleDisconnectedEventHandler);
             _xcStream = null;
         }
 
@@ -41,9 +41,9 @@ namespace XenConsoleComm.Tests.Helpers
             ++_xcMessageHandlerCalled;
         }
 
-        public void PipeDisconnectedEventHandler(object sender, EventArgs e)
+        public void XenConsoleDisconnectedEventHandler(object sender, EventArgs e)
         {
-            ++_pipeDisconnectHandlerCalled;
+            ++_disconnectHandlerCalled;
         }
 
         public int XCMessageHandlerCalled
@@ -51,9 +51,9 @@ namespace XenConsoleComm.Tests.Helpers
             get { return _xcMessageHandlerCalled; }
         }
 
-        public int PipeDisconnectHandlerCalled
+        public int DisconnectHandlerCalled
         {
-            get { return _pipeDisconnectHandlerCalled; }
+            get { return _disconnectHandlerCalled; }
         }
     }
 }

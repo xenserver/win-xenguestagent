@@ -25,7 +25,7 @@ namespace XenConsoleComm.Tests
             Assert.AreEqual(0, pipeClient.ReadsCompleted);
             Assert.AreEqual(1, pipeClient.asyncReads.Count);
             Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
-            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
+            Assert.AreEqual(0, userObj.DisconnectHandlerCalled);
             foreach (KeyValuePair<string, int> read in pipeClient.asyncReads)
             {
                 Assert.AreEqual(0, read.Value);
@@ -102,7 +102,7 @@ namespace XenConsoleComm.Tests
                 pipeClient.chunksRead[0]
             );
             Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
-            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
+            Assert.AreEqual(0, userObj.DisconnectHandlerCalled);
         }
 
         [Test]
@@ -156,11 +156,11 @@ namespace XenConsoleComm.Tests
             Assert.AreEqual(readsReturn.Length, readsCompleted);
             Assert.AreEqual(readsReturn.Length, pipeClient.ReadsCompleted);
             Assert.AreEqual(readsReturn.Length, userObj.XCMessageHandlerCalled);
-            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
+            Assert.AreEqual(0, userObj.DisconnectHandlerCalled);
         }
 
         [Test]
-        public void Start_NoPipeDisconnectedEventSubscribers_InvalidOperationExceptionThrown()
+        public void Start_NoDisconnectedEventSubscribers_InvalidOperationExceptionThrown()
         {
             // Arrange
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub();
@@ -173,7 +173,7 @@ namespace XenConsoleComm.Tests
                     .TypeOf<InvalidOperationException>()
                     .With.Property("Message")
                     .EqualTo(
-                        "Event 'PipeDisconnected' must have at least "
+                        "Event 'Disconnected' must have at least "
                         + "1 subscriber before attempting to connect."
                     )
             );
@@ -230,7 +230,7 @@ namespace XenConsoleComm.Tests
                     ))
             );
             Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
-            Assert.AreEqual(0, userObj.PipeDisconnectHandlerCalled);
+            Assert.AreEqual(0, userObj.DisconnectHandlerCalled);
         }
 
         [Test]
@@ -254,7 +254,7 @@ namespace XenConsoleComm.Tests
 
             // Assert
             Assert.AreEqual(0, userObj.XCMessageHandlerCalled);
-            Assert.AreEqual(1, userObj.PipeDisconnectHandlerCalled);
+            Assert.AreEqual(1, userObj.DisconnectHandlerCalled);
             Assert.IsFalse(xcs.IsConnected);
         }
     }
