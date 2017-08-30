@@ -1,5 +1,6 @@
 ﻿using IXenConsoleComm;
 using System;
+using System.IO;
 using System.IO.Pipes;
 using System.Text;
 using XenConsoleComm.Interfaces;
@@ -64,16 +65,18 @@ namespace XenConsoleComm
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposing)
+            if (!disposing || _xenConsoleClient == null)
                 return;
 
             EventHandler discon = Disconnected;
 
-            if (_xenConsoleClient != null)
+            try
             {
                 _xenConsoleClient.Dispose();
-                _xenConsoleClient = null;
             }
+            catch (NullReferenceException) { return; }
+
+            _xenConsoleClient = null;
             _readBuffer = null;
             MessageReceived = null;
             Disconnected = null;
@@ -102,10 +105,15 @@ namespace XenConsoleComm
         internal void OnXenConsoleMessageReceived(IAsyncResult ar)
         {
             EventHandler msgReceived = MessageReceived;
-            EventHandler discon = Disconnected;
             Func<string, bool> rule = _messageForwardingRule;
+            int bytesRead = 0;
 
-            int bytesRead = _xenConsoleClient.EndRead(ar);
+            try
+            {
+                bytesRead = _xenConsoleClient.EndRead(ar);
+            }
+            catch (IOException) { }
+            catch (NullReferenceException) { }
 
             if (bytesRead == 0)
             {
