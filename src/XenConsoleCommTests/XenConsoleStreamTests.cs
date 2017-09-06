@@ -1,5 +1,6 @@
 ﻿using NUnit.Framework;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using XenConsoleComm.Tests.Helpers;
@@ -39,7 +40,7 @@ namespace XenConsoleComm.Tests
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub {
                 PipeServerIsReadWrite = false
             };
-            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient, pipeClient.Connect);
             AUserClass userObj = new AUserClass(xcs);
 
             // Assert
@@ -105,23 +106,14 @@ namespace XenConsoleComm.Tests
             Assert.AreEqual(0, userObj.DisconnectHandlerCalled);
         }
 
-        [Test]
-        public void Start_MultipleAsyncReadsCompleted_Callback()
+
+        public void ReceiveMessages(string[] messages, string[] expected)
         {
-            // Arrange
-            byte[] tmpBuffer = new byte[NamedPipeClientStreamStub.BufferSize];
-
-            string[] readsReturn = new string[] {
-                RandomString.Generate(52),
-                RandomString.Generate(77),
-                RandomString.Generate(26),
-            };
-
             int readsCompleted = 0;
 
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub
             {
-                ReadsReturn = readsReturn,
+                ReadsReturn = messages,
                 InvokeCallback = true
             };
             XenConsoleStream xcs = new XenConsoleStream(pipeClient);
@@ -132,17 +124,23 @@ namespace XenConsoleComm.Tests
             Thread.Sleep(200);
 
             // Assert
-            for (int i = 0; i < pipeClient.chunksRead.Count; ++i)
+            for (int i = 0; i < userObj.readMessage.Count; ++i)
             {
+                byte[] tmpBuffer = new byte[NamedPipeClientStreamStub.UTF8Enc.GetByteCount(expected[i])];
+
                 NamedPipeClientStreamStub.UTF8Enc.GetBytes(
-                    readsReturn[i],
+                    expected[i],
                     0,
-                    readsReturn[i].Length,
+                    expected[i].Length,
                     tmpBuffer,
                     0
                 );
 
-                Assert.AreEqual(tmpBuffer, pipeClient.chunksRead[i]);
+                List<byte> al = new List<byte>();
+                al.Add(0x02);
+                al.AddRange(userObj.readMessage[i]);
+                al.Add(0x03);
+                Assert.AreEqual(tmpBuffer, al.ToArray());
             }
 
             foreach (KeyValuePair<string, int> read in pipeClient.asyncReads)
@@ -152,13 +150,155 @@ namespace XenConsoleComm.Tests
             }
 
             // +1 because the last 'BeginRead()' does not complete
-            Assert.AreEqual(readsReturn.Length + 1, pipeClient.asyncReads.Count);
-            Assert.AreEqual(readsReturn.Length, readsCompleted);
-            Assert.AreEqual(readsReturn.Length, pipeClient.ReadsCompleted);
-            Assert.AreEqual(readsReturn.Length, userObj.XCMessageHandlerCalled);
+            Assert.AreEqual(messages.Length + 1, pipeClient.asyncReads.Count);
+            Assert.AreEqual(messages.Length, readsCompleted);
+            Assert.AreEqual(messages.Length, pipeClient.ReadsCompleted);
+            Assert.AreEqual(expected.Length, userObj.XCMessageHandlerCalled);
             Assert.AreEqual(0, userObj.DisconnectHandlerCalled);
         }
 
+        [Test]
+        public void Start_MultipleAsyncReadsCompleted_Callback()
+        {
+            // Arrange
+
+            string[] inputmessages = new string[] {
+                RandomString.Generate(52),
+                RandomString.Generate(77),
+                RandomString.Generate(26),
+            };
+
+            string[] messagesReceived = new string[] {
+                '\x02'+inputmessages[0]+'\x03',
+                '\x02'+inputmessages[1]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            string[] messagesExpected = new string[] {
+                '\x02'+inputmessages[0]+'\x03',
+                '\x02'+inputmessages[1]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            ReceiveMessages(messagesReceived, messagesExpected);
+        }
+
+        [Test]
+        public void Start_MultipleAsyncReadsCompleted_MissingMessage()
+        {
+            // Arrange
+
+            string[] inputmessages = new string[] {
+                RandomString.Generate(52),
+                RandomString.Generate(77),
+                RandomString.Generate(26),
+            };
+
+            string[] messagesReceived = new string[] {
+                '\x02'+inputmessages[0]+'\x03',
+                inputmessages[1],
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            string[] messagesExpected = new string[] {
+                '\x02'+inputmessages[0]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            ReceiveMessages(messagesReceived, messagesExpected);
+        }
+
+        [Test]
+        public void Start_MultipleAsyncReadsCompleted_ExtendedMessage()
+        {
+            // Arrange
+
+            string[] inputmessages = new string[] {
+                RandomString.Generate(52),
+                RandomString.Generate(77),
+                RandomString.Generate(26),
+            };
+
+            string[] messagesReceived = new string[] {
+                '\x02'+inputmessages[0],
+                inputmessages[1]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            string[] messagesExpected = new string[] {
+                '\x02'+inputmessages[0]+inputmessages[1]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            ReceiveMessages(messagesReceived, messagesExpected);
+        }
+        [Test]
+        public void Start_MultipleAsyncReadsCompleted_VeryExtendedMessage()
+        {
+            // Arrange
+
+            string[] inputmessages = new string[] {
+                RandomString.Generate(52),
+                RandomString.Generate(77),
+                RandomString.Generate(26),
+            };
+
+            string[] messagesReceived = new string[] {
+                '\x02'+inputmessages[0],
+                inputmessages[1],
+                inputmessages[2]+'\x03',
+            };
+
+            string[] messagesExpected = new string[] {
+                '\x02'+inputmessages[0]+inputmessages[1]+inputmessages[2]+'\x03',
+            };
+
+            ReceiveMessages(messagesReceived, messagesExpected);
+        }
+        [Test]
+        public void Start_MultipleAsyncReadsCompleted_ShortMessages()
+        {
+            // Arrange
+
+            string[] inputmessages = new string[] {
+                RandomString.Generate(52),
+                RandomString.Generate(77),
+                RandomString.Generate(26),
+            };
+
+            string[] messagesReceived = new string[] {
+                '\x02'+inputmessages[0]+'\x03'+inputmessages[1]+'\x02'+inputmessages[2]+'\x03',
+            };
+
+            string[] messagesExpected = new string[] {
+                '\x02'+inputmessages[0]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            ReceiveMessages(messagesReceived, messagesExpected);
+        }
+        [Test]
+        public void Start_MultipleAsyncReadsCompleted_ShortMessagesNoGap()
+        {
+            // Arrange
+
+            string[] inputmessages = new string[] {
+                RandomString.Generate(52),
+                RandomString.Generate(77),
+                RandomString.Generate(26),
+            };
+
+            string[] messagesReceived = new string[] {
+                '\x02'+inputmessages[0]+'\x03'+'\x02'+inputmessages[2]+'\x03',
+            };
+
+            string[] messagesExpected = new string[] {
+                '\x02'+inputmessages[0]+'\x03',
+                '\x02'+inputmessages[2]+'\x03',
+            };
+
+            ReceiveMessages(messagesReceived, messagesExpected);
+        }
         [Test]
         public void Start_NoDisconnectedEventSubscribers_InvalidOperationExceptionThrown()
         {
@@ -184,12 +324,15 @@ namespace XenConsoleComm.Tests
         {
             // Arrange
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub();
-            XenConsoleStream xcs = new XenConsoleStream(pipeClient);
+            XenConsoleStream xcs = new XenConsoleStream(pipeClient, pipeClient.Connect);
             AUserClass userObj = new AUserClass(xcs);
 
             // Assert
             Assert.That(() =>
-            { xcs.Start(); xcs.Start(); }, // Act
+                { 
+                    xcs.Start(); 
+                    xcs.Start(); 
+                }, // Act
                 Throws.Exception
                     .TypeOf<InvalidOperationException>()
                     .With.Property("Message")
@@ -204,9 +347,12 @@ namespace XenConsoleComm.Tests
             byte[] tmpBuffer = new byte[NamedPipeClientStreamStub.BufferSize];
 
             string[] readsReturn = new string[] {
+                '\x02'+RandomString.Generate(
+                     NamedPipeClientStreamStub.BufferSize-1
+                ),
                 RandomString.Generate(
-                    2 * NamedPipeClientStreamStub.BufferSize
-                )
+                     NamedPipeClientStreamStub.BufferSize-1
+                )+'\x03',
             };
 
             NamedPipeClientStreamStub pipeClient = new NamedPipeClientStreamStub {

@@ -26,6 +26,12 @@ namespace XenConsoleComm
                 PipeOptions.Asynchronous
             )) { }
 
+        internal XenConsoleStream(PipeStream pipeClient, connectFn connectFunction = null) : this (
+            new NamedPipeClientStreamWrapper(
+                pipeClient, 
+                connectFunction
+            )) { }
+
         internal XenConsoleStream(INamedPipeClientStream pipeClient)
         {
             _xenConsoleClient = pipeClient;
