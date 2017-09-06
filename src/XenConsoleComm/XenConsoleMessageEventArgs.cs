@@ -1,6 +1,7 @@
 ﻿using IXenConsoleComm;
 using System;
 using XenConsoleComm.Interfaces;
+using System.IO.Pipes;
 
 namespace XenConsoleComm
 {

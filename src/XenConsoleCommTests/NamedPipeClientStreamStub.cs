@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -9,7 +10,7 @@ using XenConsoleComm.Tests.Helpers;
 
 namespace XenConsoleComm.Tests.Stubs
 {
-    internal class NamedPipeClientStreamStub : INamedPipeClientStream
+    internal class NamedPipeClientStreamStub: PipeStream
     {
         private static readonly Random Rnd = new Random();
         public static readonly UTF8Encoding UTF8Enc = new UTF8Encoding(false);
@@ -23,7 +24,6 @@ namespace XenConsoleComm.Tests.Stubs
         private bool _pipeIsBroken = false;
         private bool _canRead = true;
         private bool _isMessageComplete = false;
-        private bool _isConnected = false;
         private bool _pipeServerIsReadWrite= true;
         private bool _invokeCallback = false;
 
@@ -31,19 +31,19 @@ namespace XenConsoleComm.Tests.Stubs
         private int _readsCompleted = 0;
         private Exception _callbackException = null;
 
+        public NamedPipeClientStreamStub() : base(PipeDirection.InOut,PipeTransmissionMode.Byte , 1024)
+        {
+        }
+
         public void Connect()
         {
-            if (IsConnected)
-                throw new InvalidOperationException("The client is already connected.");
             if (!PipeServerIsReadWrite)
                 throw new UnauthorizedAccessException("Access to the path is denied.");
 
             IsConnected = true;
         }
 
-        public void Dispose() { }
-
-        public IAsyncResult BeginRead(
+        override public IAsyncResult BeginRead(
             byte[] buffer,
             int offset,
             int count,
@@ -71,7 +71,7 @@ namespace XenConsoleComm.Tests.Stubs
             if (_readsReturn != null && _readsCompleted < _readsReturn.Length)
             {
                 Thread thread = new Thread(() =>
-                    ThreadWorker(_readsReturn[_readsCompleted], buffer, callback, ars)
+                    ThreadWorker(_readsReturn[_readsCompleted],count, buffer, callback, ars)
                 );
                 thread.Start();
             }
@@ -79,7 +79,7 @@ namespace XenConsoleComm.Tests.Stubs
             return ars;
         }
 
-        public int EndRead(IAsyncResult asyncResult)
+        override public int EndRead(IAsyncResult asyncResult)
         {
             AsyncResultStub ars = (AsyncResultStub)asyncResult;
             // All keys of the hashmnap must have value '1' in the end.
@@ -89,13 +89,17 @@ namespace XenConsoleComm.Tests.Stubs
 
         public void Write(string value)
         {
+            byte[] buffer = UTF8Enc.GetBytes(value);
+            Write(buffer, 0, buffer.Length);
+        }
+
+        public override void Write(Byte[] buffer, Int32 offset, Int32 writecount)
+        {
             if (PipeIsBroken)
                 throw new IOException("Pipe is broken.");
 
-            byte[] buffer = UTF8Enc.GetBytes(value);
-
-            int bytesLeft = buffer.Length;
-            int index = 0;
+            int bytesLeft = writecount;
+            int index = offset;
 
             while (bytesLeft > 0)
             {
@@ -111,7 +115,11 @@ namespace XenConsoleComm.Tests.Stubs
             }
         }
 
-        private void ThreadWorker(string value, byte[] buffer, AsyncCallback callback, AsyncResultStub ars)
+        public override void Flush()
+        {
+        }
+
+        private void ThreadWorker(string value, int count, byte[] buffer, AsyncCallback callback, AsyncResultStub ars)
         {
             byte[] valueBytes = UTF8Enc.GetBytes(value);
 
@@ -119,6 +127,9 @@ namespace XenConsoleComm.Tests.Stubs
             ars.BytesWritten = valueBytes.Length < BufferSize
                 ? valueBytes.Length
                 : BufferSize;
+            ars.BytesWritten = count < ars.BytesWritten
+                ? count
+                : ars.BytesWritten;
 
             Array.Copy(
                 valueBytes,
@@ -130,7 +141,7 @@ namespace XenConsoleComm.Tests.Stubs
             buffer.CopyTo(chunksRead.Last(), 0);
 
             ++_readsCompleted;
-            IsMessageComplete = (valueBytes.Length <= BufferSize);
+            _isMessageComplete = (valueBytes.Length <= BufferSize);
 
             if (InvokeCallback)
             {
@@ -143,6 +154,24 @@ namespace XenConsoleComm.Tests.Stubs
                     _callbackException = exc;
                 }
             }
+        }
+        PipeTransmissionMode _readMode;
+
+        public override PipeTransmissionMode ReadMode
+        {
+            get
+            {
+                return _readMode;
+            }
+            set
+            {
+                _readMode = value;
+            }
+        }
+
+        new public bool IsMessageComplete
+        {
+            get { return _isMessageComplete; }
         }
 
         public bool PipeIsClosed
@@ -157,23 +186,11 @@ namespace XenConsoleComm.Tests.Stubs
             set { _pipeIsBroken = value; }
         }
 
-        public bool CanRead
+        override public bool CanRead
         {
             get { return _canRead; }
-            set { _canRead = value; }
         }
 
-        public bool IsMessageComplete
-        {
-            get { return _isMessageComplete; }
-            set { _isMessageComplete = value; }
-        }
-
-        public bool IsConnected
-        {
-            get { return _isConnected; }
-            set { _isConnected = value; }
-        }
 
         public bool PipeServerIsReadWrite
         {

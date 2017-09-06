@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using XenConsoleComm.Tests.Stubs;
+using XenConsoleComm.Wrappers;
 
 namespace XenConsoleComm.Tests
 {
@@ -15,7 +16,7 @@ namespace XenConsoleComm.Tests
             NamedPipeClientStreamStub pipeStream = new NamedPipeClientStreamStub();
             XenConsoleMessageEventArgs message = new XenConsoleMessageEventArgs(
                 "test",
-                pipeStream
+                new NamedPipeClientStreamWrapper(pipeStream)
             );
 
             // Assert
@@ -32,7 +33,7 @@ namespace XenConsoleComm.Tests
             NamedPipeClientStreamStub pipeStream = new NamedPipeClientStreamStub();
             XenConsoleMessageEventArgs message = new XenConsoleMessageEventArgs(
                 "test",
-                pipeStream
+                new NamedPipeClientStreamWrapper(pipeStream)
             );
 
             // Assert
@@ -56,7 +57,7 @@ namespace XenConsoleComm.Tests
 
             XenConsoleMessageEventArgs message = new XenConsoleMessageEventArgs(
                 "test",
-                pipeStream
+                new NamedPipeClientStreamWrapper(pipeStream)
             );
 
             // Assert
