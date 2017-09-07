@@ -1,11 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
-using XenConsoleComm.Interfaces;
 using System.Threading;
-using System.Linq;
-using System.IO;
-using System.Diagnostics;
+using XenConsoleComm.Interfaces;
 
 namespace XenConsoleComm.Wrappers
 {
@@ -13,6 +11,23 @@ namespace XenConsoleComm.Wrappers
 
     internal class NamedPipeClientStreamWrapper : INamedPipeClientStream
     {
+
+        enum MessageStatus
+        {
+            NotStarted,
+            InProgress
+        };
+        private MessageStatus status = MessageStatus.NotStarted;
+        private byte[] readBuffer;
+        private AsyncCallback callback;
+        private int userOffset;
+        private int userByteCount;
+        byte[] userBuffer;
+        private object state;
+        private byte[] cache = new byte[0];
+        private int cacheByteCount = 0;
+        private bool _isMessageComplete;
+        private AsyncMessageResultWrapper asyncMessage;
         private PipeStream _pipeStream;
         private static readonly UTF8Encoding UTF8Enc = new UTF8Encoding(false);
 
@@ -85,11 +100,11 @@ namespace XenConsoleComm.Wrappers
             _pipeStream.Dispose();
         }
 
-        bool MessageNotStarted(int bytes)
+        private bool MessageNotStarted(int bytes)
         {
             int start = 0;
 
-            start = Array.IndexOf<byte>(readBuffer, 0x02,0,bytes);
+            start = Array.IndexOf<byte>(readBuffer, 0x02, 0, bytes);
             if (start != -1)
             {
                 return (MessageInProgress(start + 1, bytes - (start + 1)));
@@ -99,16 +114,18 @@ namespace XenConsoleComm.Wrappers
             return false;
         }
 
-        bool MessageInProgress(int readOffset, int bytes)
+        private bool MessageInProgress(int readOffset, int bytes)
         {
-            status = messagestatus.INPROGRESS;
+            status = MessageStatus.InProgress;
 
             int end = Array.IndexOf<byte>(readBuffer, 0x03,readOffset, bytes);
 
-            if (end == -1) {
+            if (end == -1) 
+            {
                 Array.Copy(readBuffer, readOffset, userBuffer, userOffset, bytes);
                 userOffset += bytes;
-                if (userOffset == userBuffer.GetLength(0)) {
+                if (userOffset == userBuffer.GetLength(0)) 
+                {
                     IndicateIncompleteMessage(userByteCount);
                     return true;
                 }
@@ -117,7 +134,8 @@ namespace XenConsoleComm.Wrappers
                     return ReadMore(userByteCount-userOffset);
                 }
             }
-            else {
+            else 
+            {
                 end = end - readOffset;
                 Array.Copy(readBuffer, readOffset, userBuffer, userOffset, end);
                 Debug.Assert(cacheByteCount == 0);
@@ -132,30 +150,27 @@ namespace XenConsoleComm.Wrappers
 
         }
 
-        void IndicateCompleteMessage(int bytesRead)
+        private void IndicateCompleteMessage(int bytesRead)
         {
             _isMessageComplete = true;
             asyncMessage.Indicate(bytesRead, true);
         }
 
-        void IndicateIncompleteMessage(int bytesRead)
+        private void IndicateIncompleteMessage(int bytesRead)
         {
             _isMessageComplete = false;
             asyncMessage.Indicate(bytesRead, false);
         }
 
-        enum messagestatus
+        private class AsyncMessageResultWrapper : IAsyncResult
         {
-            NOTSTARTED,
-            INPROGRESS
-        };
-        class WrapperAsyncMessageResult : IAsyncResult
-        {
-            bool _IsCompleted;
-            bool _CompletedSynchronously;
-            int _bytesRead;
-            EventWaitHandle _AsyncWaitHandle;
-            AsyncCallback _callback;
+            private bool _IsCompleted;
+            private bool _CompletedSynchronously;
+            private int _bytesRead;
+            private EventWaitHandle _AsyncWaitHandle;
+            private AsyncCallback _callback;
+ 
+
             public void Indicate(int bytesRead, bool completed)
             {
                 _IsCompleted = completed;
@@ -163,17 +178,21 @@ namespace XenConsoleComm.Wrappers
                 _AsyncWaitHandle.Set();
                 _callback(this);
             }
-            public int bytesRead {
+
+            public int BytesRead 
+            {
                 get { return _bytesRead; }
             }
-            public WrapperAsyncMessageResult(IAsyncResult result, AsyncCallback callback)
+
+            public AsyncMessageResultWrapper(IAsyncResult result, AsyncCallback callback)
             {
                 _IsCompleted = result.IsCompleted;
                 _CompletedSynchronously = result.CompletedSynchronously;
                 _AsyncWaitHandle = new EventWaitHandle(result.IsCompleted, EventResetMode.ManualReset);
                 _callback = callback;
             }
-            public WrapperAsyncMessageResult(bool synchronously, AsyncCallback callback)
+
+            public AsyncMessageResultWrapper(bool synchronously, AsyncCallback callback)
             {
                 if (synchronously)
                 {
@@ -188,15 +207,14 @@ namespace XenConsoleComm.Wrappers
                 _AsyncWaitHandle = new EventWaitHandle(_IsCompleted, EventResetMode.ManualReset);
                 _callback = callback;
             }
+
             public object AsyncState { get { return null; } }
             public WaitHandle AsyncWaitHandle { get { return _AsyncWaitHandle; } }
             public bool CompletedSynchronously { get { return _CompletedSynchronously; } }
             public bool IsCompleted { get { return _IsCompleted; } }
         };
 
-        messagestatus status = messagestatus.NOTSTARTED;
-
-        internal void OnBytesRead(IAsyncResult ar)
+        private void OnBytesRead(IAsyncResult ar)
         {
             int bytesread = _pipeStream.EndRead(ar);
             if (bytesread == 0)
@@ -204,27 +222,16 @@ namespace XenConsoleComm.Wrappers
                 IndicateIncompleteMessage(userOffset);
                 return;
             }
-            if (status == messagestatus.NOTSTARTED) {
+            if (status == MessageStatus.NotStarted) {
                 MessageNotStarted(bytesread);
                 return;
             }
-            else if (status == messagestatus.INPROGRESS) {
+            else if (status == MessageStatus.InProgress) {
                 MessageInProgress(0, bytesread);
                 return;
             }
             
         }
-
-        byte[] readBuffer;
-        AsyncCallback callback;
-        int userOffset;
-        int userByteCount;
-        byte[] userBuffer;
-        object state;
-        byte[] cache = new byte[0];
-        int cacheByteCount = 0;
-        bool _isMessageComplete;
-        WrapperAsyncMessageResult asyncMessage;
 
         public IAsyncResult BeginRead(
             byte[] buffer,
@@ -234,7 +241,7 @@ namespace XenConsoleComm.Wrappers
             object state)
         {
             this._isMessageComplete = false;
-            this.status = messagestatus.NOTSTARTED;
+            this.status = MessageStatus.NotStarted;
             this.readBuffer = new byte[count];
             this.callback = callback;
             this.userOffset = offset;
@@ -246,17 +253,18 @@ namespace XenConsoleComm.Wrappers
                 int cacheCopy = Math.Min(cacheByteCount, count);
                 Array.Copy(cache, readBuffer, cacheCopy);
                 cacheByteCount = cacheByteCount - cacheCopy;
-                asyncMessage = new WrapperAsyncMessageResult(MessageNotStarted(cacheCopy), callback);
+                asyncMessage = new AsyncMessageResultWrapper(MessageNotStarted(cacheCopy), callback);
                 return asyncMessage;
             }
             else
             {
-                asyncMessage = new WrapperAsyncMessageResult(_pipeStream.BeginRead(readBuffer, 0, count, OnBytesRead, state),callback);
+                asyncMessage = new AsyncMessageResultWrapper(_pipeStream.BeginRead(readBuffer, 0, count, OnBytesRead, state),callback);
                 return asyncMessage;
             }
         }
 
-        private bool ReadMore(int bytesToRead) {
+        private bool ReadMore(int bytesToRead) 
+        {
             if (cacheByteCount > 0)
             {
                 int cacheCopy = Math.Min(cacheByteCount, bytesToRead);
@@ -273,12 +281,12 @@ namespace XenConsoleComm.Wrappers
 
         public int EndRead(IAsyncResult asyncResult)
         {
-            return ((WrapperAsyncMessageResult)asyncResult).bytesRead;
+            return ((AsyncMessageResultWrapper)asyncResult).BytesRead;
         }
 
         public void Write(string value)
         {
-            value = '\x02'+value+'\x03'; //It's a message, so wrap it accordingly
+            value = '\x02' + value + '\x03'; //It's a message, so wrap it accordingly
             byte[] buffer = new byte[2 * WriteBufferSize];
 
             int charsLeft = value.Length;

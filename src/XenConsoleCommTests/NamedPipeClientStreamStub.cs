@@ -31,7 +31,7 @@ namespace XenConsoleComm.Tests.Stubs
         private int _readsCompleted = 0;
         private Exception _callbackException = null;
 
-        public NamedPipeClientStreamStub() : base(PipeDirection.InOut,PipeTransmissionMode.Byte , 1024)
+        public NamedPipeClientStreamStub() : base(PipeDirection.InOut,PipeTransmissionMode.Byte , BufferSize)
         {
         }
 
@@ -43,7 +43,7 @@ namespace XenConsoleComm.Tests.Stubs
             IsConnected = true;
         }
 
-        override public IAsyncResult BeginRead(
+        public override IAsyncResult BeginRead(
             byte[] buffer,
             int offset,
             int count,
@@ -79,7 +79,7 @@ namespace XenConsoleComm.Tests.Stubs
             return ars;
         }
 
-        override public int EndRead(IAsyncResult asyncResult)
+        public override int EndRead(IAsyncResult asyncResult)
         {
             AsyncResultStub ars = (AsyncResultStub)asyncResult;
             // All keys of the hashmnap must have value '1' in the end.
@@ -93,25 +93,25 @@ namespace XenConsoleComm.Tests.Stubs
             Write(buffer, 0, buffer.Length);
         }
 
-        public override void Write(Byte[] buffer, Int32 offset, Int32 writecount)
+        public override void Write(Byte[] buffer, Int32 offset, Int32 count)
         {
             if (PipeIsBroken)
                 throw new IOException("Pipe is broken.");
 
-            int bytesLeft = writecount;
+            int bytesLeft = count;
             int index = offset;
 
             while (bytesLeft > 0)
             {
-                int count = bytesLeft < BufferSize
+                int writecount = bytesLeft < BufferSize
                     ? bytesLeft
                     : BufferSize;
 
                 byte[] chunk = new byte[BufferSize];
-                Array.Copy(buffer, index, chunk, 0, count);
+                Array.Copy(buffer, index, chunk, 0, writecount);
                 chunksWritten.Add(chunk);
-                bytesLeft -= count;
-                index += count;
+                bytesLeft -= writecount;
+                index += writecount;
             }
         }
 
