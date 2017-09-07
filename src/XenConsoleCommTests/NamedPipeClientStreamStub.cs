@@ -10,7 +10,7 @@ using XenConsoleComm.Tests.Helpers;
 
 namespace XenConsoleComm.Tests.Stubs
 {
-    internal class NamedPipeClientStreamStub: PipeStream
+    internal class NamedPipeClientStreamStub : PipeStream
     {
         private static readonly Random Rnd = new Random();
         public static readonly UTF8Encoding UTF8Enc = new UTF8Encoding(false);
@@ -115,9 +115,7 @@ namespace XenConsoleComm.Tests.Stubs
             }
         }
 
-        public override void Flush()
-        {
-        }
+        public override void Flush(){}
 
         private void ThreadWorker(string value, int count, byte[] buffer, AsyncCallback callback, AsyncResultStub ars)
         {
@@ -159,14 +157,8 @@ namespace XenConsoleComm.Tests.Stubs
 
         public override PipeTransmissionMode ReadMode
         {
-            get
-            {
-                return _readMode;
-            }
-            set
-            {
-                _readMode = value;
-            }
+            get { return _readMode; }
+            set { _readMode = value; }
         }
 
         new public bool IsMessageComplete
@@ -186,7 +178,7 @@ namespace XenConsoleComm.Tests.Stubs
             set { _pipeIsBroken = value; }
         }
 
-        override public bool CanRead
+        public override bool CanRead
         {
             get { return _canRead; }
         }

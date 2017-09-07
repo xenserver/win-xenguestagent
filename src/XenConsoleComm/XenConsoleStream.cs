@@ -26,10 +26,11 @@ namespace XenConsoleComm
                 PipeOptions.Asynchronous
             )) { }
 
-        public XenConsoleStream(PipeStream pipeClient, connectFn connectFunction = null) :this (new NamedPipeClientStreamWrapper(pipeClient, connectFunction))
-        {
-        }
-
+        internal XenConsoleStream(PipeStream pipeClient, connectFn connectFunction = null) : this (
+            new NamedPipeClientStreamWrapper(
+                pipeClient, 
+                connectFunction
+            )) { }
 
         internal XenConsoleStream(INamedPipeClientStream pipeClient)
         {
