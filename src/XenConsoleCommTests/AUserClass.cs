@@ -1,5 +1,7 @@
 using IXenConsoleComm;
 using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace XenConsoleComm.Tests.Helpers
 {
@@ -9,9 +11,12 @@ namespace XenConsoleComm.Tests.Helpers
         private int _xcMessageHandlerCalled = 0;
         private int _disconnectHandlerCalled = 0;
 
+        public List<byte[]> readMessage;
+
         public AUserClass(IXenConsoleStream xcStream)
         {
             AttachToXenConsoleStream(xcStream);
+            readMessage = new List<byte[]>();
         }
 
         public AUserClass() { }
@@ -39,6 +44,8 @@ namespace XenConsoleComm.Tests.Helpers
         public void XenConsoleMessageEventHandler(object sender, EventArgs e)
         {
             ++_xcMessageHandlerCalled;
+            XenConsoleMessageEventArgs args = (XenConsoleMessageEventArgs)e;
+            readMessage.Add(UTF8Encoding.UTF8.GetBytes(args.Value));
         }
 
         public void XenConsoleDisconnectedEventHandler(object sender, EventArgs e)
