@@ -287,7 +287,7 @@ namespace xenwinsvc
                         substr += string.Format("{0:x2}{1:x2}", ((int)backup[poscount])&0xff, (((int)backup[poscount])>>8)&0xff);
                         size--;
                         poscount++;
-                        if (((poscount % 256) == 0) || (size == 0))
+                        if (((poscount % 255) == 0) || (size == 0))
                         {
                             wmisession.GetXenStoreItem("control/snapshot/snapid/" + pagecount.ToString()).value = substr;
                             substr = "";
