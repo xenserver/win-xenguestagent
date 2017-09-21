@@ -81,6 +81,7 @@ namespace xenwinsvc
 
         XenStoreItem xdvdapresent;
         XenStoreItem xdvdaproductinstalled;
+        XenStoreItem xdvdaversion;
 
         object pvinstalllock = new object();
         bool initialised = false;
@@ -252,6 +253,7 @@ namespace xenwinsvc
 
             xdvdapresent = wmisession.GetXenStoreItem("data/xd/present");
             xdvdaproductinstalled = wmisession.GetXenStoreItem("data/xd/product_installed");
+            xdvdaversion = wmisession.GetXenStoreItem("data/xd/vda-version");
 
             lock (pvinstalllock)
             {
@@ -292,13 +294,17 @@ namespace xenwinsvc
             try
             {
                 string vdapath;
-                if (Win32Impl.is64BitOS() && (!Win32Impl.isWOW64()))
+                string ctxvdaversionpath;
+                if (Win32Impl.is64BitOS() && (Win32Impl.isWOW64()))
                 {
-                    vdapath = "Software\\Wow6432Node\\Citrix\\VirtualDesktopAgent";
+                    ctxvdaversionpath = "Software\\Wow6432Node\\Citrix\\Versions\\Citrix Virtual Desktop Agent";
+                    vdapath = "Software\\Wow6432Node\\Citrix\\Versions\\Citrix Virtual Desktop Agent";
                 }
                 else {
+                    ctxvdaversionpath = "Software\\Citrix\\Versions\\Citrix Virtual Desktop Agent";
                     vdapath = "Software\\Citrix\\VirtualDesktopAgent";
                 }
+
                 try
                 {
                     if (Array.Exists(Registry.LocalMachine.OpenSubKey(vdapath).GetValueNames(),
@@ -310,6 +316,34 @@ namespace xenwinsvc
                     {
                         // ListOfDDCs not found
                         xdvdapresent.value = "0";
+                    }
+
+                    try
+                    {
+                        string vdaname = null;
+                        const string vdaname64 = "Citrix Virtual Desktop Agent - x64";
+                        const string vdaname32 = "Citrix Virtual Desktop Agent - x86";
+                        if (Array.IndexOf(Registry.LocalMachine.OpenSubKey(ctxvdaversionpath).GetValueNames(), vdaname64) > -1)
+                        {
+                            vdaname = vdaname64;
+                        }
+                        else if (Array.IndexOf(Registry.LocalMachine.OpenSubKey(ctxvdaversionpath).GetValueNames(), vdaname32) > -1)
+                        {
+                            vdaname = vdaname32;
+                        }
+                        Trace.WriteLine(vdaname);
+                        if (vdaname != null)
+                        {
+                            if (Registry.LocalMachine.OpenSubKey(ctxvdaversionpath).GetValueKind(vdaname) == RegistryValueKind.String)
+                            {
+                                string vdaversion = (string)Registry.LocalMachine.OpenSubKey(ctxvdaversionpath).GetValue(vdaname);
+                                xdvdaversion.value = vdaversion;
+                                Trace.WriteLine(vdaversion);
+                            }
+                        }
+                    }
+                    catch ()
+                    {
                     }
 
                     try
@@ -336,7 +370,7 @@ namespace xenwinsvc
                     }
 
                 }
-                catch
+                catch()
                 {
                     // Unable to read vdapath
                     xdvdapresent.value = "0";
