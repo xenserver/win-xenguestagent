@@ -42,29 +42,44 @@ using System.Linq;
 namespace xenwinsvc
 {
 
-    public class NetInfo : IRefresh
+    abstract public class NetInfo : IRefresh
     {
 
-        Object updating;
-        IExceptionHandler exceptionhandler;
-        WmiSession wmisession;
-        XenStoreItem devicevif;
-        XenStoreItem datavif;
-        XenStoreItem numvif;
-        XenStoreItem vifStaticIpSetting;
-        const string vifpath = "device/vif";
-        static public void RefreshNetInfo()
+        protected Object updating;
+       
+        protected WmiSession wmisession;
+
+        // Funcion must be override to refresh Network info
+        public abstract bool Refresh(bool force);
+
+        // Function must be override when VM network info changed
+        protected abstract void onAddrChange(Object sender, EventArgs e);
+
+        protected IExceptionHandler exceptionhandler;
+
+        public NetInfo(IExceptionHandler exceptionhandler)
+        {
+            this.exceptionhandler = exceptionhandler;
+            updating = new Object();
+            needsRefresh = true;
+            onAddrChange(null, null);
+            addrChangeHandler = new NetworkAddressChangedEventHandler(onAddrChange);
+            NetworkChange.NetworkAddressChanged += addrChangeHandler;
+        }
+
+        
+        protected virtual void RefreshNetInfo()
         {
             needsRefresh = true;
         }
-        static private bool needsRefresh = false;
+        static protected bool needsRefresh = false;
 
-        public bool NeedsRefresh()
+        virtual public bool NeedsRefresh()
         {
              return needsRefresh;
         }
 
-        bool macsMatch(string mac, NetworkInterface nic)
+        virtual protected bool macsMatch(string mac, NetworkInterface nic)
         {
             byte[] macbytes = nic.GetPhysicalAddress().GetAddressBytes();
             if (macbytes.Length != 6) // Looks like an Ethernet mac address 
@@ -85,25 +100,7 @@ namespace xenwinsvc
 
         }
 
-        string getIpv4AddrString(NetworkInterface nic)
-        {
-            if (nic.Supports(NetworkInterfaceComponent.IPv4))
-            {
-                IPInterfaceProperties ipprop = nic.GetIPProperties();
-                IPv4InterfaceProperties ipv4prop = ipprop.GetIPv4Properties();
-                foreach (UnicastIPAddressInformation addr in ipprop.UnicastAddresses)
-                {
-                    if (addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    {
-                        return addr.Address.ToString();
-                    }
-                }
-            }
-            return null;
-        }
-        
-
-        IEnumerable<IPAddress> getIpv6Addr(NetworkInterface nic)
+        virtual protected IEnumerable<IPAddress> getAddrInfo(NetworkInterface nic, System.Net.Sockets.AddressFamily addressFamily)
         {
             if (nic.Supports(NetworkInterfaceComponent.IPv6))
             {
@@ -111,7 +108,7 @@ namespace xenwinsvc
                 IPv6InterfaceProperties ipv6prop = ipprop.GetIPv6Properties();
                 foreach (UnicastIPAddressInformation addr in ipprop.UnicastAddresses)
                 {
-                    if (addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                    if (addr.Address.AddressFamily == addressFamily)
                     {
                         yield return addr.Address;
                     }
@@ -119,8 +116,63 @@ namespace xenwinsvc
             }
         }
 
+        NetworkAddressChangedEventHandler addrChangeHandler;
+       
+        protected virtual void Finish()
+        {
+            NetworkChange.NetworkAddressChanged -= addrChangeHandler;
+        }
 
- 
+        bool disposed = false;
+        void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (disposing)
+                {
+                    Finish();
+                }
+            }
+            disposed = true;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+        ~NetInfo()
+        {
+            Dispose(false);
+        }
+    }
+
+    /// <summary>
+    /// Class for the PV network
+    /// </summary>
+    public class VifInfo : NetInfo {
+
+        XenStoreItem devicevif;
+        XenStoreItem datavif;
+        XenStoreItem numvif;
+        bool enablewritedevice = true;
+
+        XenStoreItem vifStaticIpSetting;
+
+        const string vifpath = "device/vif";
+
+        public VifInfo(IExceptionHandler exceptionhandler):base(exceptionhandler)
+        {
+            wmisession = WmiBase.Singleton.GetXenStoreSession("Adapters");
+            devicevif = wmisession.GetXenStoreItem("device/vif");
+            datavif = wmisession.GetXenStoreItem("data/vif");
+            numvif = wmisession.GetXenStoreItem("data/num_vif");
+            devicevif.Watch(onVifChanged);
+
+           vifStaticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
+           vifStaticIpSetting.Watch(onVifStaticIpSetting);
+        }
+
         void removeDevices()
         {
             try
@@ -138,10 +190,11 @@ namespace xenwinsvc
             catch { }; // If there are no nodes, then we can also ignore failure
         }
 
-        bool enablewritedevice = true;
         void writeDevice(string device, NetworkInterface[] nics)
         {
-            if (enablewritedevice) {
+           
+            if (enablewritedevice)
+            {
                 string mac = wmisession.GetXenStoreItem(device + "/mac").value;
                 foreach (NetworkInterface nic in nics)
                 {
@@ -149,7 +202,8 @@ namespace xenwinsvc
                     {
                         XenStoreItem name = wmisession.GetXenStoreItem("data/vif/" + device.Substring(vifpath.Length + 1) + "/name");
                         name.value = nic.Name;
-                        if (name.GetStatus() != ManagementStatus.NoError) {
+                        if (name.GetStatus() != ManagementStatus.NoError)
+                        {
                             enablewritedevice = false;
                             return;
                         }
@@ -157,11 +211,23 @@ namespace xenwinsvc
                 }
             }
         }
+   
+        public override bool Refresh(bool force)
+        {
+            updateNetworkInfo();
+            StoreChangedNetworkSettings();
+            return true;
+        }
 
+        protected virtual void onVifStaticIpSetting(object nothing, EventArrivedEventArgs args)
+        {
+            needsRefresh = true;
+        }
 
         private void updateNetworkInfo()
         {
-            lock(updating) {
+            lock (updating)
+            {
                 needsRefresh = false;
                 removeDevices();
                 string[] devices;
@@ -178,7 +244,7 @@ namespace xenwinsvc
 
                 try
                 {
-                    try 
+                    try
                     {
                         numvif.value = devices.Length.ToString();
                         foreach (string device in devices)
@@ -186,38 +252,35 @@ namespace xenwinsvc
                             writeDevice(device, nics);
                         }
                     }
-                    catch (Exception){
+                    catch (Exception)
+                    {
                         wmisession.AbortTransaction();
                         throw;
                     }
                     wmisession.CommitTransaction();
-                    
-     
+
+
                 }
-                catch {
-                    needsRefresh = true; 
+                catch
+                {
+                    needsRefresh = true;
                 };
-                
+
             }
         }
 
-        public bool Refresh(bool force)
-        {
-            updateNetworkInfo();
-            NetInfo.StoreChangedNetworkSettings();
-            return true;
-        }
-
-        void onAddrChange(Object sender, EventArgs e)
+        override protected void onAddrChange(Object sender, EventArgs e)
         {
             try
             {
                 updateNetworkInfo();
-                NetInfo.StoreChangedNetworkSettings();
+                StoreChangedNetworkSettings();
                 WmiBase.Singleton.Kick();
             }
-            catch (System.Management.ManagementException x) {
-                if (x.ErrorCode != ManagementStatus.AccessDenied) {
+            catch (System.Management.ManagementException x)
+            {
+                if (x.ErrorCode != ManagementStatus.AccessDenied)
+                {
                     exceptionhandler.HandleException("Network Information", x);
                 }
             }
@@ -226,49 +289,21 @@ namespace xenwinsvc
                 exceptionhandler.HandleException("Network Information", ex);
             }
         }
-
-        WmiWatchListener vifListen;
-        WmiWatchListener vifStaticIpSettingListen;
-
-
         void onVifChanged(object nothing, EventArrivedEventArgs args)
         {
             needsRefresh = true;
         }
 
-        void onVifStaticIpSetting(object nothing, EventArrivedEventArgs args)
-        {
-            needsRefresh = true;
-        }
-
-        NetworkAddressChangedEventHandler addrChangeHandler;
-        public NetInfo(IExceptionHandler exceptionhandler)
-        {
-            updating = new Object();
-            this.exceptionhandler = exceptionhandler;
-            wmisession = WmiBase.Singleton.GetXenStoreSession("Adapters");
-            devicevif = wmisession.GetXenStoreItem("device/vif");
-            datavif = wmisession.GetXenStoreItem("data/vif");
-            numvif =  wmisession.GetXenStoreItem("data/num_vif");
-            vifStaticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
-            needsRefresh = true;
-            onAddrChange(null, null);
-            addrChangeHandler = new NetworkAddressChangedEventHandler(onAddrChange);
-            NetworkChange.NetworkAddressChanged += addrChangeHandler;
-            vifListen = devicevif.Watch(onVifChanged);
-            vifStaticIpSettingListen = vifStaticIpSetting.Watch(onVifStaticIpSetting);
-        }
-
         const string NETSETTINGSSTORE = @"SOFTWARE\Citrix\XenToolsNetSettings";
         const string ENUM = @"SYSTEM\CurrentControlSet\Enum\";
         const string CONTROL = @"SYSTEM\CurrentControlSet\Control\";
-        const string CLASS = CONTROL+@"Class\";
+        const string CLASS = CONTROL + @"Class\";
         const string NETWORKUUID = @"{4D36E972-E325-11CE-BFC1-08002BE10318}";
-        const string NETWORKDEVICE = CLASS+NETWORKUUID+@"\";
+        const string NETWORKDEVICE = CLASS + NETWORKUUID + @"\";
         const string TCPIPSRV = @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
         const string TCPIP6SRV = @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces";
         const string NETBTSRV = @"SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces";
-        const string NSI = CLASS+@"NSI\";
+        const string NSI = CLASS + @"NSI\";
         const string STORE = @"SOFTWARE\Citrix\XenToolsNetSettings\";
         const string STATICIPV4STORE = STORE + @"IPV4";
         const string STATICIPV6STORE = STORE + @"IPV6";
@@ -283,14 +318,15 @@ namespace xenwinsvc
                 {
                     try
                     {
-                        using (RegistryKey devicekey = netdevkey.OpenSubKey(keyname)) {
+                        using (RegistryKey devicekey = netdevkey.OpenSubKey(keyname))
+                        {
                             if (((string)devicekey.GetValue("NetCfgInstanceId")).Equals(NetCfgInstanceId))
                             {
                                 return keyname;
                             }
                         }
                     }
-                    catch {}
+                    catch { }
                 }
             }
             throw new Exception("Unable to find Class Device Key Name for NefCfgInstance");
@@ -306,16 +342,17 @@ namespace xenwinsvc
                 {
                     return devicekey;
                 }
-                else {
+                else
+                {
                     devicekey.Close();
                 }
-             }
+            }
             throw new Exception("Unable to find Class Device Key for Mac");
         }
 
         static string FindClassDeviceNameForNetCfgInstanceId(string NetCfgInstanceId)
         {
-            return NETWORKUUID+@"\"+FindClassDeviceKeyNameForNetCfgInstanceId(NetCfgInstanceId);
+            return NETWORKUUID + @"\" + FindClassDeviceKeyNameForNetCfgInstanceId(NetCfgInstanceId);
         }
 
         static string GetMacStrFromPhysical(PhysicalAddress pa)
@@ -349,8 +386,9 @@ namespace xenwinsvc
         static string FindDeviceKeyForMac(string mac)
         {
             string NetCfgInstanceId = FindNetCfgInstanceIdForMac(mac);
-            
-            using (RegistryKey devicekey= FindClassDeviceKeyForNetCfgInstanceId(NetCfgInstanceId)){
+
+            using (RegistryKey devicekey = FindClassDeviceKeyForNetCfgInstanceId(NetCfgInstanceId))
+            {
                 return (string)devicekey.GetValue("DeviceInstanceId");
             }
         }
@@ -408,29 +446,29 @@ namespace xenwinsvc
                                 using (RegistryKey enumkey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum"))
                                 {
                                     foreach (string bus in enumkey.GetSubKeyNames())
-                                      using (RegistryKey buskey = enumkey.OpenSubKey(bus))
-                                    {
-                                        foreach (string busdriver in buskey.GetSubKeyNames())
-                                          using (RegistryKey busdriverkey = buskey.OpenSubKey(busdriver))
+                                        using (RegistryKey buskey = enumkey.OpenSubKey(bus))
                                         {
-                                            foreach (string busdriverdevice in busdriverkey.GetSubKeyNames())
-                                              using (RegistryKey busdriverdevicekey = busdriverkey.OpenSubKey(busdriverdevice))
-                                            {
-                                                try
+                                            foreach (string busdriver in buskey.GetSubKeyNames())
+                                                using (RegistryKey busdriverkey = buskey.OpenSubKey(busdriver))
                                                 {
-                                                    string driver = (string)busdriverdevicekey.GetValue("Driver");
-                                                    if (driver.Equals(classname, StringComparison.InvariantCultureIgnoreCase))
-                                                    {
-                                                        Trace.WriteLine("NETINFO Record " + pa.ToString());
-                                                        emulatedkey.SetValue(GetMacStrFromPhysical(pa), bus+"\\"+busdriver+"\\"+busdriverdevice);
-                                                    }
+                                                    foreach (string busdriverdevice in busdriverkey.GetSubKeyNames())
+                                                        using (RegistryKey busdriverdevicekey = busdriverkey.OpenSubKey(busdriverdevice))
+                                                        {
+                                                            try
+                                                            {
+                                                                string driver = (string)busdriverdevicekey.GetValue("Driver");
+                                                                if (driver.Equals(classname, StringComparison.InvariantCultureIgnoreCase))
+                                                                {
+                                                                    Trace.WriteLine("NETINFO Record " + pa.ToString());
+                                                                    emulatedkey.SetValue(GetMacStrFromPhysical(pa), bus + "\\" + busdriver + "\\" + busdriverdevice);
+                                                                }
+                                                            }
+                                                            catch
+                                                            {
+                                                            }
+                                                        }
                                                 }
-                                                catch
-                                                {
-                                                }
-                                            }
                                         }
-                                    }
                                 }
 
 
@@ -532,7 +570,7 @@ namespace xenwinsvc
         {
             using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).OpenSubKey(Src))
             {
-                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).OpenSubKey(Dest,true))
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIPSRV).OpenSubKey(Dest, true))
                 {
                     CloneValues(tcpipsrckey, tcpipdestkey);
                 }
@@ -540,7 +578,7 @@ namespace xenwinsvc
 
             using (RegistryKey tcpipsrckey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).OpenSubKey(Src))
             {
-                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).OpenSubKey(Dest,true))
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(TCPIP6SRV).OpenSubKey(Dest, true))
                 {
                     CloneValues(tcpipsrckey, tcpipdestkey);
                 }
@@ -575,7 +613,7 @@ namespace xenwinsvc
 
             using (RegistryKey tcpipsrckey = StoreKey.OpenSubKey("NetBT"))
             {
-                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(NETBTSRV).CreateSubKey("Tcpip_"+Dest))
+                using (RegistryKey tcpipdestkey = Registry.LocalMachine.OpenSubKey(NETBTSRV).CreateSubKey("Tcpip_" + Dest))
                 {
                     CloneValues(tcpipsrckey, tcpipdestkey);
                 }
@@ -591,12 +629,13 @@ namespace xenwinsvc
             {
                 try
                 {
-                    if (((String)store.GetValue("Status")).Equals("DontUpdate")) {
+                    if (((String)store.GetValue("Status")).Equals("DontUpdate"))
+                    {
                         Trace.WriteLine("Do not update stored values");
                         return;
                     }
                 }
-                catch{}
+                catch { }
 
                 NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface nic in nics)
@@ -641,7 +680,7 @@ namespace xenwinsvc
                         {
 
                             Debug.Print("MAC " + matchmac);
-                            Trace.WriteLine("NETINFO Save "+pa.ToString());
+                            Trace.WriteLine("NETINFO Save " + pa.ToString());
                             if (pvstore.GetValueNames().Contains(matchmac))
                             {
                                 string SrcNetLuidMatchStr;
@@ -656,9 +695,9 @@ namespace xenwinsvc
                                         //We only want to save over the top of entries we believe to
                                         //be PV, to avoid overwriting emulated entries when a new
                                         //PV device is installed.
-                                        string ifacetype=(string)ifacekey.GetValue("ifacetype", "NONE");
-                                        Trace.WriteLine(matchmac+" ifacetype = " + ifacetype);
-                                        if (! ifacetype.Equals("Emulated"))
+                                        string ifacetype = (string)ifacekey.GetValue("ifacetype", "NONE");
+                                        Trace.WriteLine(matchmac + " ifacetype = " + ifacetype);
+                                        if (!ifacetype.Equals("Emulated"))
                                         {
                                             Debug.Print("Create mac");
                                             ifacekey.SetValue("ifacetype", "PV", RegistryValueKind.String);
@@ -691,12 +730,12 @@ namespace xenwinsvc
         private static void StoreSavedNetworkSettingsToEmulatedDevices()
         {
             Trace.WriteLine("NETINFO StoreSavedNetworkSettingsToEmulatedDevices");
-            using (RegistryKey macstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE+@"\Mac"))
+            using (RegistryKey macstore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Mac"))
             using (RegistryKey emustore = Registry.LocalMachine.CreateSubKey(NETSETTINGSSTORE + @"\Emulated"))
             {
                 foreach (string macaddr in macstore.GetSubKeyNames())
                 {
-                    
+
                     try
                     {
                         using (RegistryKey ifacekey = macstore.OpenSubKey(macaddr, true))
@@ -719,7 +758,8 @@ namespace xenwinsvc
                                 Trace.WriteLine("ifacetype = " + ifacetype);
 
                             }
-                            else {
+                            else
+                            {
                                 continue;
                             }
                         }
@@ -736,15 +776,16 @@ namespace xenwinsvc
             {
                 foreach (string devmac in pvstore.GetValueNames())
                 {
-                    if (emustore.GetValueNames().Contains(devmac)) {
+                    if (emustore.GetValueNames().Contains(devmac))
+                    {
                         string EmuNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)emustore.GetValue(devmac));
                         string PVNetCfgInstanceId = FindNetCfgInstanceIdForDriverKey((string)pvstore.GetValue(devmac));
                         string EmuNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(EmuNetCfgInstanceId);
                         string PVNetLuidMatchStr = FindNetLuidMatchStrForNetCfgInstanceId(PVNetCfgInstanceId);
 
                         ClonePVStatics(STATICIPV4STORE, STATICIPV4, PVNetLuidMatchStr, EmuNetLuidMatchStr, true);
-                        ClonePVStatics(STATICIPV6STORE, STATICIPV6, PVNetLuidMatchStr, EmuNetLuidMatchStr,true );
-                    }   
+                        ClonePVStatics(STATICIPV6STORE, STATICIPV6, PVNetLuidMatchStr, EmuNetLuidMatchStr, true);
+                    }
                 }
             }
 
@@ -755,17 +796,18 @@ namespace xenwinsvc
             try
             {
                 ServiceController sc = null;
-                ServiceControllerStatus status=ServiceControllerStatus.Stopped;
+                ServiceControllerStatus status = ServiceControllerStatus.Stopped;
                 try
                 {
-                    sc= new ServiceController("XenNet");
+                    sc = new ServiceController("XenNet");
                     status = sc.Status;
                 }
-                catch {
+                catch
+                {
                     sc = null;
                 }
 
-                if ( (sc != null) && (status == ServiceControllerStatus.Running))
+                if ((sc != null) && (status == ServiceControllerStatus.Running))
                 {
                     RecordDevices("PV");
                     StorePVNetworkSettingsToEmulatedDevicesOrSave();
@@ -783,7 +825,7 @@ namespace xenwinsvc
                         Debug.Print("Store changed settings " + e.ToString());
                     }
                 }
- 
+
             }
             catch (Exception e)
             {
@@ -791,33 +833,234 @@ namespace xenwinsvc
                 throw;
             }
         }
+    }
 
-        protected virtual void Finish()
+    /// <summary>
+    /// The VF for SR-IOV NICs
+    /// </summary>
+    public class VfInfo:NetInfo
+    {
+
+        const string SRIOV_DEVICE_NAME = "net-sriov-vf";
+        string VF_DEVICE_KEY_PREFIX = String.Format("xenserver/device/{0}", SRIOV_DEVICE_NAME);
+        const string VF_STATIC_PATH = "xenserver/device/vif";
+        string VF_ATTR_KEY_PREFIX = String.Format("xenserver/attr/{0}",SRIOV_DEVICE_NAME);
+        const string SESSION_NAME = "SriovAdapters";
+        const int MAX_VF_SUPPORT = 8 * 32 * 10;
+        XenStoreItem devicevf;
+        XenStoreItem vfStaticIpSetting;
+
+        /// <summary>
+        ///  The constructor, build up wmisession and watch xenstore keys
+        /// </summary>
+        /// <param name="exceptionhandler"> exceptionhandler passed to base class</param>
+        public VfInfo(IExceptionHandler exceptionhandler):base(exceptionhandler)
         {
-            NetworkChange.NetworkAddressChanged -= addrChangeHandler;
+            wmisession = WmiBase.Singleton.GetXenStoreSession(SESSION_NAME);
+            
+            devicevf = wmisession.GetXenStoreItem(VF_DEVICE_KEY_PREFIX);
+            devicevf.Watch(onVfChanged);
+
+            vfStaticIpSetting = wmisession.GetXenStoreItem(VF_STATIC_PATH);
+            vfStaticIpSetting.Watch(onVfStaticIpSetting);
         }
 
-        bool disposed = false;
-        void Dispose(bool disposing)
+        /// <summary>
+        /// Fresh for every interval
+        /// </summary>
+        /// <param name="force"></param>
+        /// <returns></returns>
+        public override bool Refresh(bool force)
         {
-            if (!disposed)
+            updateNetworkInfo();
+            return true;
+        }
+
+        /// <summary>
+        /// Callback when vf static IP setting changed
+        /// </summary>
+        /// <param name="nothing"></param>
+        /// <param name="args"></param>
+        protected virtual void onVfStaticIpSetting(object nothing, EventArrivedEventArgs args)
+        {
+            needsRefresh = true;
+        }
+
+        /// <summary>
+        /// The main update logic for every round of refresh
+        /// </summary>
+        private void updateNetworkInfo()
+        {
+            
+            lock (updating)
             {
-                if (disposing)
+                needsRefresh = false;
+                string[] devices;
+                NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
+                try
                 {
-                    Finish();
+                    devices = devicevf.children;
+                }
+                catch
+                {
+                    return; //No children means no devices to store data about
+                }
+                wmisession.StartTransaction();
+
+                try
+                {
+                    try
+                    {
+                        foreach (string device in devices)
+                        {
+                            updateVFXenstoreInfo(device, nics);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        wmisession.AbortTransaction();
+                        throw;
+                    }
+                    wmisession.CommitTransaction();
+
+                }
+                catch
+                {
+                    needsRefresh = true;
+                };
+
+            }
+        }
+
+        /// <summary>
+        /// Enumberate all the Guest OS device, match the Nic with xensore key by Mac address
+        /// if find the xenstore key, then update the xenstore info
+        /// </summary>
+        /// <param name="device"></param>
+        /// <param name="nics"></param>
+        void updateVFXenstoreInfo(string device, NetworkInterface[] nics)
+        {
+            Debug.Print("updating device: {0}", device);
+            XenStoreItem macItem = wmisession.GetXenStoreItem(device + "/mac");
+            string strDeviceID = device.Substring(VF_DEVICE_KEY_PREFIX.Length + 1);
+
+            if (!macItem.Exists() || "".Equals(macItem.value)) 
+            {
+                Debug.Print("Warning: xenstored should provide mac address for this vf device");
+                Debug.Print("Warning: ignore device {0}",strDeviceID);
+                return;
+            }
+            string mac = macItem.value;
+            bool bFoundDevice = false;
+
+            foreach (NetworkInterface nic in nics)
+            {
+                if (macsMatch(mac, nic))
+                {
+                    updateVFXenstoreAttrInfo(device, nic, mac);
+                    bFoundDevice = true;
                 }
             }
-            disposed = true;
+            if (!bFoundDevice)
+            {
+                // Not found active NIC at all, we suppose this NIC is disabled
+                // Note: our mac match does not support change the soft-mac in guest in this version
+                string deviceAttrPath = String.Format("{0}/{1}",VF_ATTR_KEY_PREFIX,strDeviceID);
+                XenStoreItem deviceAttr = wmisession.GetXenStoreItem(deviceAttrPath); 
+                if (deviceAttr.Exists()) 
+                {
+                    Debug.Print("delete {0} as maybe disabled", deviceAttrPath);
+                    deviceAttr.Remove();
+                }
+            }
+
+        }
+       
+        /// <summary>
+        /// For the SR-IOV, the VF info needs to be updated to xenstore
+        /// while the PV vif is updated by xenvif drivers
+        /// </summary>
+        /// <param name="device"></param>
+        /// <param name="nic"></param>
+        /// <param name="mac"></param>
+        private void updateVFXenstoreAttrInfo(string device, NetworkInterface nic, string mac)
+        {
+            if (null == device || null == nic) return; // We trust xenstore, it is a SR-IOV device
+           
+
+            string deviceID = device.Substring(VF_DEVICE_KEY_PREFIX.Length + 1);
+            string nameKey = String.Format("{0}/{1}/name", VF_ATTR_KEY_PREFIX, deviceID);
+            string macKey = String.Format("{0}/{1}/mac", VF_ATTR_KEY_PREFIX, deviceID);
+
+            // Update the xenstore info
+            try
+            {
+                // Update name
+                XenStoreItem xenName = wmisession.GetXenStoreItem(nameKey);
+                xenName.value = nic.Name;
+
+                // Update mac
+                XenStoreItem xenMac = wmisession.GetXenStoreItem(macKey);
+                xenMac.value = mac;
+
+                // Update ipv4
+                int index = 0;
+                foreach (var item in getAddrInfo(nic, System.Net.Sockets.AddressFamily.InterNetwork))
+                {
+                    string ipv4Key = String.Format("{0}/{1}/ipv4/{2}/addr", VF_ATTR_KEY_PREFIX, deviceID, index);
+                    XenStoreItem xenIpv4 = wmisession.GetXenStoreItem(ipv4Key);
+                    xenIpv4.value = item.ToString();
+                    index++;
+                }
+
+                // Update Ipv6
+                index = 0;
+                foreach (var item in getAddrInfo(nic, System.Net.Sockets.AddressFamily.InterNetworkV6))
+                {
+                    string ipv6Key = String.Format("{0}/{1}/ipv6/{2}/addr", VF_ATTR_KEY_PREFIX, deviceID, index++);
+                    XenStoreItem xenIpv6 = wmisession.GetXenStoreItem(ipv6Key);
+                    xenIpv6.value = item.ToString();
+                    index++;
+                }
+
+            }
+            catch (Exception e)
+            {
+                Debug.Print("updateVFXenstoreAttrInfo error: {0}", e);
+            }
+
         }
 
-        public void Dispose()
+        /// <summary>
+        /// Callback function when NIC change event detected
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        override protected void onAddrChange(Object sender, EventArgs e)
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            try
+            {
+                updateNetworkInfo();
+               
+            }
+            catch (System.Management.ManagementException x)
+            {
+                if (x.ErrorCode != ManagementStatus.AccessDenied)
+                {
+                    exceptionhandler.HandleException("Network Information", x);
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptionhandler.HandleException("Network Information", ex);
+            }
         }
-        ~NetInfo()
+        void onVfChanged(object nothing, EventArrivedEventArgs args)
         {
-            Dispose(false);
+            needsRefresh = true;
         }
+
+
     }
+
 }
