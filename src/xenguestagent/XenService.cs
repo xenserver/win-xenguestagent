@@ -159,7 +159,7 @@ namespace xenwinsvc
                 Debug.Print("ServiceThreadHandler");
                 needsShutdown.Reset();
 
-                NetInfo.StoreChangedNetworkSettings();
+                VifInfo.StoreChangedNetworkSettings();
 
                 WmiBase.Reset();
                 Debug.Print("WMI Check");
@@ -292,7 +292,8 @@ namespace xenwinsvc
                 new FeatureStaticIpSetting(this);
                 wmisession.Log("About to add refreshers");
                 
-                Refresher.Add(new NetInfo(this));
+                Refresher.Add(new VifInfo(this));
+                Refresher.Add(new VfInfo(this));
                 Refresher.Add(new VolumeInfo());
                 Refresher.Add(new MemoryInfo());
                 Refresher.Add(new XenAppSessionInfo());
