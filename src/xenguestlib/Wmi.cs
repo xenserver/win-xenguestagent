@@ -53,12 +53,6 @@ namespace xenwinsvc
 
         private Queue<string> debugmsg;
 
-
-
-
-
-
-
         public static bool HandleManagementException(ManagementException manex) {
             if ((manex.ErrorCode == ManagementStatus.InvalidObject) ||
                 (manex.ErrorCode == ManagementStatus.InvalidClass))
@@ -636,17 +630,69 @@ namespace xenwinsvc
         private Dictionary<string, XenStoreItem> items;
         private Dictionary<string, XenStoreItemCached> cacheditems;
 
+        public void AwaitTransactionCompletion()
+        {
+            // The plan is
+            //   1) enter the session monitor
+            //   2) once we are here, if there is a transaction, it isn't
+            //      ours, and we can kill it.
+            //   3) leave the session monitor
+            //
+            System.Threading.Monitor.Enter(session);
+            try
+            {
+                session.InvokeMethod("AbortTransaction", null);
+            }
+            catch { }
+            System.Threading.Monitor.Exit(session);
+        }
+
         public void StartTransaction()
         {
-            session.InvokeMethod("StartTransaction", null);
+            System.Threading.Monitor.Enter(session);
+            try
+            {
+                session.InvokeMethod("StartTransaction", null);
+            }
+            catch (Exception e)
+            {
+                try
+                {
+                    // We are entitled to kill any transaction running
+                    // when we have the session lock
+                    session.InvokeMethod("AbortTransaction", null);
+                    session.InvokeMethod("StartTransaction", null);
+                }
+                catch
+                {
+                    System.Threading.Monitor.Exit(session);
+                    throw e;
+                }
+            }
         }
+
         public void CommitTransaction()
         {
-            session.InvokeMethod("CommitTransaction", null);
+            try
+            {
+                session.InvokeMethod("CommitTransaction", null);
+            }
+            finally
+            {
+                System.Threading.Monitor.Exit(session);
+            }
         }
+
         public void AbortTransaction()
         {
-            session.InvokeMethod("AbortTransaction", null);
+            try 
+            {
+                session.InvokeMethod("AbortTransaction", null);
+            }
+            finally
+            {
+                System.Threading.Monitor.Exit(session);
+            }
         }
 
         public void AddWatch(string pathname) {
