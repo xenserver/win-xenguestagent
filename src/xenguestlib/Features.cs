@@ -36,6 +36,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using NetFwTypeLib;
 
 namespace xenwinsvc
@@ -137,6 +138,10 @@ namespace xenwinsvc
         protected abstract void onFeature();
         void onFeatureWrapper(object nothing, EventArrivedEventArgs args)
         {
+            // If this session is already in a transaction we must
+            // wait for it to finish, otherwise we may not correctly
+            // read the controlKey
+            wmisession.AwaitTransactionCompletion();
             try
             {
                 if (enabled && ((!controlmustexist) || controlKey.Exists())) {
@@ -705,7 +710,14 @@ namespace xenwinsvc
             bool handled = false;
             while (!handled)
             {
-                wmisession.StartTransaction();
+                try
+                {
+                    wmisession.StartTransaction();
+                }
+                catch (System.Management.ManagementException e)
+                {
+                    throw new Exception("Unable to start transaction " + e.ToString());
+                }
                 try
                 {
                     tc();
@@ -714,21 +726,20 @@ namespace xenwinsvc
                         wmisession.CommitTransaction();
                         handled = true;
                     }
-                    catch
+                    catch (Exception e)
                     {
                         // an exception during the commit means handled doesn't get set
+                        // We want to loop around and try again
+                        continue;
                     }
                 }
                 catch (Exception e)
-                {
-                    throw e;
-                }
-                finally
                 {
                     if (!handled)
                     {
                         wmisession.AbortTransaction();
                     }
+                    throw e;
                 }
             }
         }
@@ -818,25 +829,49 @@ namespace xenwinsvc
         protected override void onFeature()
         {
             string result = FeatureXSBatchCommand.SUCCESS;
+
+            // Do not attempt to process the feature if controlKey.value is not READY
+            // Because writing back to the control key will trigger this feature again
+            if (!controlKey.Exists()) 
+                    return;
+            try {
+                if (!controlKey.value.Equals(FeatureXSBatchCommand.READY)){
+                    return;
+                }
+            }
+            catch {
+                return;
+            }
+
             try
             {
                 lock (cmdLock)
                 {
                     newCommand = false;
-                    handleTransaction(
-                        delegate()
-                        {
-                            if (controlKey.Exists())
+                    try
+                    {
+                        handleTransaction(
+                            delegate()
                             {
-                                if (controlKey.value.Equals(FeatureXSBatchCommand.READY))
+                                if (controlKey.Exists())
                                 {
-
-                                    this.state.value = FeatureXSBatchCommand.IN_PROGRESS;
-                                    batchFile = this.script.value;
-                                    newCommand = true;
+                                    if (controlKey.value.Equals(FeatureXSBatchCommand.READY))
+                                    {
+                                        this.state.value = FeatureXSBatchCommand.IN_PROGRESS;
+                                        batchFile = this.script.value;
+                                        newCommand = true;
+                                    }
                                 }
-                            }
-                        });
+                            });
+                    }
+                    catch (Exception e)
+                    {
+                        this.stderr.value = "Command Initialisation Failed : "+e.ToString();
+                        result = FeatureXSBatchCommand.FAILURE;
+                        state.value = result;
+                        return;
+                    }
+
                     if (!newCommand)
                     {
                         return;
