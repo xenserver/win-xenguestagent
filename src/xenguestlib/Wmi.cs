@@ -677,10 +677,6 @@ namespace xenwinsvc
             {
                 session.InvokeMethod("CommitTransaction", null);
             }
-            catch (Exception e)
-            {
-                throw e;
-            }
             finally
             {
                 System.Threading.Monitor.Exit(session);
@@ -692,10 +688,6 @@ namespace xenwinsvc
             try 
             {
                 session.InvokeMethod("AbortTransaction", null);
-            }
-            catch (Exception e)
-            {
-                throw e;
             }
             finally
             {
