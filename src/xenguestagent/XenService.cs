@@ -291,9 +291,15 @@ namespace xenwinsvc
                 new FeatureTerminalServices(this);
                 new FeatureStaticIpSetting(this);
                 wmisession.Log("About to add refreshers");
-                
-                Refresher.Add(new VifInfo(this));
-                Refresher.Add(new VfInfo(this));
+
+                VifInfo vifRefresher = new VifInfo(this);
+                Refresher.Add(vifRefresher);
+                Disposer.Add(vifRefresher);
+
+                VfInfo vfRefresher = new VfInfo(this);
+                Refresher.Add(vfRefresher);
+                Disposer.Add(vfRefresher);
+
                 Refresher.Add(new VolumeInfo());
                 Refresher.Add(new MemoryInfo());
                 Refresher.Add(new XenAppSessionInfo());
