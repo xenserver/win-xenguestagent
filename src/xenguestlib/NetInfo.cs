@@ -41,44 +41,167 @@ using System.Linq;
 
 namespace xenwinsvc
 {
-
+    /// <summary>
+    /// The abstract class define behavior of all network interface
+    /// </summary>
     abstract public class NetInfo : IRefresh
     {
 
+        /// <summary>
+        /// The key to set the static ip
+        /// </summary>
+        protected const string STATIC_IP_FEATURE_MONITOR_KEY = "xenserver/device/vif";
+
         protected Object updating;
        
+        /// <summary>
+        /// The wmi session object, all sub-class needs to initialize this object
+        /// </summary>
         protected WmiSession wmisession;
 
-        // Funcion must be override to refresh Network info
-        public abstract bool Refresh(bool force);
+        /// <summary>
+        /// update when catch new changes or refresh
+        /// </summary>
+        protected virtual void updateNicStatus()
+        {
+            updateNetworkInfo();
+        }
 
-        // Function must be override when VM network info changed
-        protected abstract void onAddrChange(Object sender, EventArgs e);
+        /// <summary>
+        /// Refresh interval
+        /// </summary>
+        /// <param name="force">ignored</param>
+        /// <returns>whether kickof the xenstore change</returns>
+        public bool Refresh(bool force) 
+        {
+            try
+            {
+                updateNicStatus();
+            }
+            catch (System.Management.ManagementException x)
+            {
+                if (x.ErrorCode != ManagementStatus.AccessDenied)
+                {
+                    exceptionhandler.HandleException("Network Information", x);
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptionhandler.HandleException("Network Information", ex);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// When catch the changes inside VM about the NIC
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        protected void onVmNicAddrChange(Object sender, EventArgs e)
+        {
+            needsRefresh = true;
+        }
+
+        /// <summary>
+        /// Xenstore item for the static ip setting
+        /// </summary>
+        XenStoreItem netStaticIpSetting;
 
         protected IExceptionHandler exceptionhandler;
 
-        public NetInfo(IExceptionHandler exceptionhandler)
+        /// <summary>
+        /// whether needs to refresh
+        /// </summary>
+        static protected bool needsRefresh = false;
+
+        /// <summary>
+        /// The devicePath monitor all the network devices, must be override by the sub-class
+        /// The attrPath is the xenstore path where win-tools report network device configuration
+        ///     must be override by the sub-class
+        /// </summary>
+        protected string devicePath, attrPath;
+        /// <summary>
+        /// The xenstore Item corresponding to devicePath and attrPath
+        /// </summary>
+        protected XenStoreItem netDeviceItem,netAttrItem;
+
+        NetworkAddressChangedEventHandler addrChangeHandler;
+
+        /// <summary>
+        /// Constructor of the NetInfo class
+        /// </summary>
+        /// <param name="exceptionhandler">The exception handler, trigger when exception occurs</param>
+        /// <param name="DEVICE_PATH"> xenstore device path of NIC device</param>
+        /// <param name="ATTR_PATH"> xenstore path NIC device data info report back to</param>
+        /// <param name="SESSION_NAME"> wmi session name for NIC device</param>
+        public NetInfo(IExceptionHandler exceptionhandler,string devicePath,string attrPath, string sessionName)
         {
             this.exceptionhandler = exceptionhandler;
             updating = new Object();
             needsRefresh = true;
-            onAddrChange(null, null);
-            addrChangeHandler = new NetworkAddressChangedEventHandler(onAddrChange);
+
+            wmisession = WmiBase.Singleton.GetXenStoreSession(sessionName);
+            this.devicePath = devicePath;
+            this.attrPath = attrPath;
+
+            netDeviceItem = wmisession.GetXenStoreItem(devicePath);
+            netAttrItem = wmisession.GetXenStoreItem(attrPath);
+
+            netDeviceItem.Watch(onXenstoreNetChanged);
+
+            addrChangeHandler = new NetworkAddressChangedEventHandler(onVmNicAddrChange);
             NetworkChange.NetworkAddressChanged += addrChangeHandler;
+
+            netStaticIpSetting = wmisession.GetXenStoreItem(STATIC_IP_FEATURE_MONITOR_KEY);
+            netStaticIpSetting.Watch(onXenstoreStaticIpSettingChanged);
+
+            // trigger the first update
+            needsRefresh = true;
         }
 
-        
+        /// <summary>
+        /// Callback when device key changed
+        /// </summary>
+        /// <param name="nothing"></param>
+        /// <param name="args"></param>
+        void onXenstoreNetChanged(object nothing, EventArrivedEventArgs args)
+        {
+            needsRefresh = true;
+        }
+
+        /// <summary>
+        /// Callback function when static ip setting changed
+        /// </summary>
+        /// <param name="nothing"></param>
+        /// <param name="args"></param>
+        protected virtual void onXenstoreStaticIpSettingChanged(object nothing, EventArrivedEventArgs args)
+        {
+            needsRefresh = true;
+        }
+
+        /// <summary>
+        /// Set refresh flag
+        /// </summary>
         protected virtual void RefreshNetInfo()
         {
             needsRefresh = true;
         }
-        static protected bool needsRefresh = false;
 
+        /// <summary>
+        /// Whether needs to refresh
+        /// </summary>
+        /// <returns>whether refresh is needed</returns>
         virtual public bool NeedsRefresh()
         {
              return needsRefresh;
         }
 
+        /// <summary>
+        /// whether a nic macth with the providen mac address
+        /// </summary>
+        /// <param name="mac">mac address to be match</param>
+        /// <param name="nic">the nic object representing a NIC inside VM</param>
+        /// <returns></returns>
         virtual protected bool macsMatch(string mac, NetworkInterface nic)
         {
             byte[] macbytes = nic.GetPhysicalAddress().GetAddressBytes();
@@ -99,13 +222,18 @@ namespace xenwinsvc
             return (macmatchstr.Equals(mac.ToLower()));
 
         }
-
+        /// <summary>
+        /// Get an IP address info of an NIC, for specific address family
+        /// </summary>
+        /// <param name="nic">the nic object representing a NIC inside VM</param>
+        /// <param name="addressFamily">ipv4 or ipv6</param>
+        /// <returns></returns>
         virtual protected IEnumerable<IPAddress> getAddrInfo(NetworkInterface nic, System.Net.Sockets.AddressFamily addressFamily)
         {
-            if (nic.Supports(NetworkInterfaceComponent.IPv6))
+
+            if (nic.Supports(NetworkInterfaceComponent.IPv6) || nic.Supports(NetworkInterfaceComponent.IPv4))
             {
                 IPInterfaceProperties ipprop = nic.GetIPProperties();
-                IPv6InterfaceProperties ipv6prop = ipprop.GetIPv6Properties();
                 foreach (UnicastIPAddressInformation addr in ipprop.UnicastAddresses)
                 {
                     if (addr.Address.AddressFamily == addressFamily)
@@ -115,70 +243,15 @@ namespace xenwinsvc
                 }
             }
         }
-
-        NetworkAddressChangedEventHandler addrChangeHandler;
-       
-        protected virtual void Finish()
-        {
-            NetworkChange.NetworkAddressChanged -= addrChangeHandler;
-        }
-
-        bool disposed = false;
-        void Dispose(bool disposing)
-        {
-            if (!disposed)
-            {
-                if (disposing)
-                {
-                    Finish();
-                }
-            }
-            disposed = true;
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-        ~NetInfo()
-        {
-            Dispose(false);
-        }
-    }
-
-    /// <summary>
-    /// Class for the PV network
-    /// </summary>
-    public class VifInfo : NetInfo {
-
-        XenStoreItem devicevif;
-        XenStoreItem datavif;
-        XenStoreItem numvif;
-        bool enablewritedevice = true;
-
-        XenStoreItem vifStaticIpSetting;
-
-        const string vifpath = "device/vif";
-
-        public VifInfo(IExceptionHandler exceptionhandler):base(exceptionhandler)
-        {
-            wmisession = WmiBase.Singleton.GetXenStoreSession("Adapters");
-            devicevif = wmisession.GetXenStoreItem("device/vif");
-            datavif = wmisession.GetXenStoreItem("data/vif");
-            numvif = wmisession.GetXenStoreItem("data/num_vif");
-            devicevif.Watch(onVifChanged);
-
-           vifStaticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
-           vifStaticIpSetting.Watch(onVifStaticIpSetting);
-        }
-
-        void removeDevices()
+        /// <summary>
+        /// Clear the reported NIC attr info
+        /// </summary>
+        virtual protected void removeNicAttr()
         {
             try
             {
 
-                foreach (string node in datavif.children)
+                foreach (string node in netAttrItem.children)
                 {
                     try
                     {
@@ -189,52 +262,94 @@ namespace xenwinsvc
             }
             catch { }; // If there are no nodes, then we can also ignore failure
         }
-
-        void writeDevice(string device, NetworkInterface[] nics)
+        /// <summary>
+        /// Update all the devices info into xensore
+        /// </summary>
+        /// <param name="devices">The devices key from xenstore, representing devices from xenopsd, needs to be udpated</param>
+        /// <param name="nics">the nic objects representing a NIC inside VM</param>
+        virtual protected void updateNicAttr(string[] devices, NetworkInterface[] nics) 
         {
-           
-            if (enablewritedevice)
+            foreach (var device in devices)
             {
-                string mac = wmisession.GetXenStoreItem(device + "/mac").value;
-                foreach (NetworkInterface nic in nics)
+                XenStoreItem macItem = wmisession.GetXenStoreItem(device + "/mac");
+                if (!macItem.Exists() || "".Equals(macItem.value))
                 {
-                    if (macsMatch(mac, nic))
-                    {
-                        XenStoreItem name = wmisession.GetXenStoreItem("data/vif/" + device.Substring(vifpath.Length + 1) + "/name");
-                        name.value = nic.Name;
-                        if (name.GetStatus() != ManagementStatus.NoError)
-                        {
-                            enablewritedevice = false;
-                            return;
-                        }
-                    }
+                    Debug.Print("Warning: xenstored should provide mac address for this vf device");
+                    Debug.Print("Warning: ignore device {0}", device);
+                    continue;
                 }
+
+                string mac = macItem.value;
+
+                NetworkInterface nic = findValidNic(mac, nics);
+                if (null != nic)
+                {
+                    writeDevice(device, nic);
+                }
+                else 
+                {
+                    Debug.Print("does not find nic for mac: " + mac);
+                }
+               
             }
         }
-   
-        public override bool Refresh(bool force)
+        /// <summary>
+        /// Update the device info into into xenstore
+        /// </summary>
+        /// <param name="device">The device key from xenstore, representing device from xenopsd, needs to be udpated</param>
+        /// <param name="nic">the nic object representing a NIC inside VM</param>
+        abstract protected void writeDevice(string device, NetworkInterface nic);
+        /// <summary>
+        /// Get the device id from the device path
+        /// </summary>
+        /// <param name="indexedDevicePath">like: ~xenserver/device/net-sriov-vf/2</param>
+        /// <returns></returns>
+        public string getDeviceIndexFromIndexedDevicePath(string indexedDevicePath)
         {
-            updateNetworkInfo();
-            StoreChangedNetworkSettings();
-            return true;
+            if (!indexedDevicePath.Contains(devicePath) || indexedDevicePath.Length <= devicePath.Length) 
+            {
+                throw new Exception(string.Format("Invalid indexedDevicePath: {0}",indexedDevicePath));
+            }
+            return indexedDevicePath.Substring(devicePath.Length + 1);
         }
-
-        protected virtual void onVifStaticIpSetting(object nothing, EventArrivedEventArgs args)
+        /// <summary>
+        /// Find valid nic object from the nics array, accroding to the mac address
+        /// </summary>
+        /// <param name="mac">mac string to identify the nic</param>
+        /// <param name="nics">all the nic objects inside the VM</param>
+        /// <returns></returns>
+        virtual protected NetworkInterface findValidNic(string mac, NetworkInterface[] nics)
         {
-            needsRefresh = true;
+            if(null == mac || nics == null)
+            {
+                Debug.Print("invalid parameter for findValidNic");
+                return null;
+            }
+            NetworkInterface[] validNics = (from nic in nics where macsMatch(mac, nic) select nic).ToArray<NetworkInterface>();
+            if (null == validNics || 0 == validNics.Length)
+            {
+                Debug.Print("does not find valid nic for mac: " + mac);
+                return null;
+            }
+            else 
+            {
+                return validNics[0];
+            }
         }
-
+        /// <summary>
+        /// Update xenstore related Netork info
+        /// </summary>
         private void updateNetworkInfo()
         {
             lock (updating)
             {
                 needsRefresh = false;
-                removeDevices();
+                removeNicAttr();
                 string[] devices;
                 NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
                 try
                 {
-                    devices = devicevif.children;
+                    devices = netDeviceItem.children;
                 }
                 catch
                 {
@@ -246,11 +361,7 @@ namespace xenwinsvc
                 {
                     try
                     {
-                        numvif.value = devices.Length.ToString();
-                        foreach (string device in devices)
-                        {
-                            writeDevice(device, nics);
-                        }
+                        updateNicAttr(devices, nics);
                     }
                     catch (Exception)
                     {
@@ -268,31 +379,107 @@ namespace xenwinsvc
 
             }
         }
-
-        override protected void onAddrChange(Object sender, EventArgs e)
+        /// <summary>
+        /// Remove the Network callback function
+        /// </summary>
+        protected virtual void Finish()
         {
-            try
+            NetworkChange.NetworkAddressChanged -= addrChangeHandler;
+        }
+
+        bool disposed = false;
+        /// <summary>
+        /// Disposing the object
+        /// </summary>
+        /// <param name="disposing">whether disposing from Dispose method</param>
+        void Dispose(bool disposing)
+        {
+            if (!disposed)
             {
-                updateNetworkInfo();
-                StoreChangedNetworkSettings();
-                WmiBase.Singleton.Kick();
-            }
-            catch (System.Management.ManagementException x)
-            {
-                if (x.ErrorCode != ManagementStatus.AccessDenied)
+                if (disposing)
                 {
-                    exceptionhandler.HandleException("Network Information", x);
+                    Finish();
                 }
             }
-            catch (Exception ex)
-            {
-                exceptionhandler.HandleException("Network Information", ex);
-            }
+            disposed = true;
         }
-        void onVifChanged(object nothing, EventArrivedEventArgs args)
+        /// <summary>
+        /// Dispose and block the GC
+        /// </summary>
+        public void Dispose()
         {
-            needsRefresh = true;
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+        /// <summary>
+        /// Destructor
+        /// </summary>
+        ~NetInfo()
+        {
+            Dispose(false);
+        }
+    }
+
+    /// <summary>
+    /// Class for the PV network
+    /// </summary>
+    public class VifInfo : NetInfo {
+
+        XenStoreItem numvif;
+        const string DEVICE_PATH = "device/vif";
+        const string ATTR_PATH  = "data/vif";
+        const string SESSION_NAME = "Adapters";
+
+        /// <summary>
+        /// PV NIC constructor
+        /// </summary>
+        /// <param name="exceptionhandler"></param>
+        /// <param name="DEVICE_PATH"> xenstore device path of pv device</param>
+        /// <param name="ATTR_PATH"> xenstore path pv device data info report back to</param>
+        /// <param name="SESSION_NAME"> wmi session name for pv device</param>
+        public VifInfo(IExceptionHandler exceptionhandler)
+            : base(exceptionhandler, DEVICE_PATH, ATTR_PATH, SESSION_NAME)
+        {
+         
+            numvif = wmisession.GetXenStoreItem("data/num_vif");           
+        }
+
+       /// <summary>
+       /// Override the parent method, also update the number of devices into xenstore
+       /// </summary>
+       /// <param name="devices">Device keys from device path</param>
+       /// <param name="nics">All the nics inside VM</param>
+       override protected void updateNicAttr(string[] devices, NetworkInterface[] nics) 
+        {
+            numvif.value = devices.Length.ToString();
+            base.updateNicAttr(devices,nics);
+        }
+        /// <summary>
+        /// Write Device into xenstore, only update for the first time
+        /// </summary>
+        /// <param name="device">device key representing a device</param>
+        /// <param name="nic">nic object inside VM</param>
+        override protected void writeDevice(string device, NetworkInterface nic)
+        {
+         
+            string namePath = string.Format("{0}/{1}/name", attrPath, getDeviceIndexFromIndexedDevicePath(device));
+            XenStoreItem name = wmisession.GetXenStoreItem(namePath);
+            name.value = nic.Name;
+            if (name.GetStatus() != ManagementStatus.NoError)
+            {
+                Debug.Print(string.Format("write to {0} error",namePath));
+            }
+        
+        }
+        /// <summary>
+        /// Overwrite the to also save chagned network setting
+        /// </summary>
+        override  protected void updateNicStatus() 
+        {
+            base.updateNicStatus();
+            StoreChangedNetworkSettings();
+        }
+
 
         const string NETSETTINGSSTORE = @"SOFTWARE\Citrix\XenToolsNetSettings";
         const string ENUM = @"SYSTEM\CurrentControlSet\Enum\";
@@ -840,157 +1027,43 @@ namespace xenwinsvc
     /// </summary>
     public class VfInfo:NetInfo
     {
-
-        const string SRIOV_DEVICE_NAME = "net-sriov-vf";
-        string VF_DEVICE_KEY_PREFIX = String.Format("xenserver/device/{0}", SRIOV_DEVICE_NAME);
-        const string VF_STATIC_PATH = "xenserver/device/vif";
-        string VF_ATTR_KEY_PREFIX = String.Format("xenserver/attr/{0}",SRIOV_DEVICE_NAME);
+        /// <summary>
+        /// Device path for SR-IOV
+        /// </summary>
+        const string DEVICE_PATH = "xenserver/device/net-sriov-vf";
+        /// <summary>
+        /// The xenstore path win-tools will report back to
+        /// </summary>
+        const string ATTR_PATH = "xenserver/attr/net-sriov-vf";
+        /// <summary>
+        /// WMI session name
+        /// </summary>
         const string SESSION_NAME = "SriovAdapters";
-        const int MAX_VF_SUPPORT = 8 * 32 * 10;
-        XenStoreItem devicevf;
-        XenStoreItem vfStaticIpSetting;
 
         /// <summary>
         ///  The constructor, build up wmisession and watch xenstore keys
         /// </summary>
         /// <param name="exceptionhandler"> exceptionhandler passed to base class</param>
-        public VfInfo(IExceptionHandler exceptionhandler):base(exceptionhandler)
+        /// <param name="DEVICE_PATH"> xenstore device path of sriov</param>
+        /// <param name="ATTR_PATH"> xenstore path sriov data info report back to</param>
+        /// /// <param name="SESSION_NAME"> wmi session name for sriov device</param>
+        public VfInfo(IExceptionHandler exceptionhandler):
+            base(exceptionhandler,DEVICE_PATH,ATTR_PATH,SESSION_NAME)
         {
-            wmisession = WmiBase.Singleton.GetXenStoreSession(SESSION_NAME);
-            
-            devicevf = wmisession.GetXenStoreItem(VF_DEVICE_KEY_PREFIX);
-            devicevf.Watch(onVfChanged);
-
-            vfStaticIpSetting = wmisession.GetXenStoreItem(VF_STATIC_PATH);
-            vfStaticIpSetting.Watch(onVfStaticIpSetting);
+           
         }
 
         /// <summary>
-        /// Fresh for every interval
+        /// Override method to customize how to report the NIC data
         /// </summary>
-        /// <param name="force"></param>
-        /// <returns></returns>
-        public override bool Refresh(bool force)
-        {
-            updateNetworkInfo();
-            return true;
-        }
-
-        /// <summary>
-        /// Callback when vf static IP setting changed
-        /// </summary>
-        /// <param name="nothing"></param>
-        /// <param name="args"></param>
-        protected virtual void onVfStaticIpSetting(object nothing, EventArrivedEventArgs args)
-        {
-            needsRefresh = true;
-        }
-
-        /// <summary>
-        /// The main update logic for every round of refresh
-        /// </summary>
-        private void updateNetworkInfo()
-        {
-            
-            lock (updating)
-            {
-                needsRefresh = false;
-                string[] devices;
-                NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
-                try
-                {
-                    devices = devicevf.children;
-                }
-                catch
-                {
-                    return; //No children means no devices to store data about
-                }
-                wmisession.StartTransaction();
-
-                try
-                {
-                    try
-                    {
-                        foreach (string device in devices)
-                        {
-                            updateVFXenstoreInfo(device, nics);
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        wmisession.AbortTransaction();
-                        throw;
-                    }
-                    wmisession.CommitTransaction();
-
-                }
-                catch
-                {
-                    needsRefresh = true;
-                };
-
-            }
-        }
-
-        /// <summary>
-        /// Enumberate all the Guest OS device, match the Nic with xensore key by Mac address
-        /// if find the xenstore key, then update the xenstore info
-        /// </summary>
-        /// <param name="device"></param>
-        /// <param name="nics"></param>
-        void updateVFXenstoreInfo(string device, NetworkInterface[] nics)
-        {
-            Debug.Print("updating device: {0}", device);
-            XenStoreItem macItem = wmisession.GetXenStoreItem(device + "/mac");
-            string strDeviceID = device.Substring(VF_DEVICE_KEY_PREFIX.Length + 1);
-
-            if (!macItem.Exists() || "".Equals(macItem.value)) 
-            {
-                Debug.Print("Warning: xenstored should provide mac address for this vf device");
-                Debug.Print("Warning: ignore device {0}",strDeviceID);
-                return;
-            }
-            string mac = macItem.value;
-            bool bFoundDevice = false;
-
-            foreach (NetworkInterface nic in nics)
-            {
-                if (macsMatch(mac, nic))
-                {
-                    updateVFXenstoreAttrInfo(device, nic, mac);
-                    bFoundDevice = true;
-                }
-            }
-            if (!bFoundDevice)
-            {
-                // Not found active NIC at all, we suppose this NIC is disabled
-                // Note: our mac match does not support change the soft-mac in guest in this version
-                string deviceAttrPath = String.Format("{0}/{1}",VF_ATTR_KEY_PREFIX,strDeviceID);
-                XenStoreItem deviceAttr = wmisession.GetXenStoreItem(deviceAttrPath); 
-                if (deviceAttr.Exists()) 
-                {
-                    Debug.Print("delete {0} as maybe disabled", deviceAttrPath);
-                    deviceAttr.Remove();
-                }
-            }
-
-        }
-       
-        /// <summary>
-        /// For the SR-IOV, the VF info needs to be updated to xenstore
-        /// while the PV vif is updated by xenvif drivers
-        /// </summary>
-        /// <param name="device"></param>
-        /// <param name="nic"></param>
-        /// <param name="mac"></param>
-        private void updateVFXenstoreAttrInfo(string device, NetworkInterface nic, string mac)
+        /// <param name="device">The device needs to be reported</param>
+        /// <param name="nic">nic object inside VM</param>
+        override protected void writeDevice(string device, NetworkInterface nic)
         {
             if (null == device || null == nic) return; // We trust xenstore, it is a SR-IOV device
-           
-
-            string deviceID = device.Substring(VF_DEVICE_KEY_PREFIX.Length + 1);
-            string nameKey = String.Format("{0}/{1}/name", VF_ATTR_KEY_PREFIX, deviceID);
-            string macKey = String.Format("{0}/{1}/mac", VF_ATTR_KEY_PREFIX, deviceID);
+            string deviceId = getDeviceIndexFromIndexedDevicePath(device);
+            string nameKey = String.Format("{0}/{1}/name", attrPath, deviceId);
+            string macKey = String.Format("{0}/{1}/mac", attrPath, deviceId);
 
             // Update the xenstore info
             try
@@ -1001,27 +1074,13 @@ namespace xenwinsvc
 
                 // Update mac
                 XenStoreItem xenMac = wmisession.GetXenStoreItem(macKey);
-                xenMac.value = mac;
+                xenMac.value = nic.GetPhysicalAddress().ToString();
 
-                // Update ipv4
-                int index = 0;
-                foreach (var item in getAddrInfo(nic, System.Net.Sockets.AddressFamily.InterNetwork))
-                {
-                    string ipv4Key = String.Format("{0}/{1}/ipv4/{2}/addr", VF_ATTR_KEY_PREFIX, deviceID, index);
-                    XenStoreItem xenIpv4 = wmisession.GetXenStoreItem(ipv4Key);
-                    xenIpv4.value = item.ToString();
-                    index++;
-                }
+                // Update ipv4 info
+                updateVFIpInfo(deviceId, System.Net.Sockets.AddressFamily.InterNetwork, nic);
 
-                // Update Ipv6
-                index = 0;
-                foreach (var item in getAddrInfo(nic, System.Net.Sockets.AddressFamily.InterNetworkV6))
-                {
-                    string ipv6Key = String.Format("{0}/{1}/ipv6/{2}/addr", VF_ATTR_KEY_PREFIX, deviceID, index++);
-                    XenStoreItem xenIpv6 = wmisession.GetXenStoreItem(ipv6Key);
-                    xenIpv6.value = item.ToString();
-                    index++;
-                }
+                // Update the ipv6 info
+                updateVFIpInfo(deviceId, System.Net.Sockets.AddressFamily.InterNetworkV6, nic);
 
             }
             catch (Exception e)
@@ -1030,36 +1089,27 @@ namespace xenwinsvc
             }
 
         }
-
+   
         /// <summary>
-        /// Callback function when NIC change event detected
+        /// Update device ip address info into xenstore
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        override protected void onAddrChange(Object sender, EventArgs e)
+        /// <param name="deviceId">current device id, specified by xenposd</param>
+        /// <param name="addressFamily">System.Net.Sockets.AddressFamily.InterNetwork for ipv4, InterNetworkV6 for ipv6</param>
+        /// <param name="nic">current nic info which will be updated into xenstore</param>
+        private void updateVFIpInfo(string deviceId, System.Net.Sockets.AddressFamily addressFamily, NetworkInterface nic)
         {
-            try
+            // Clean the item to avoid zombie record
+            string ipKind = addressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "ipv4" : "ipv6";
+        
+            // Fresh the VF info into database
+            int index = 0;
+            foreach (var item in getAddrInfo(nic, addressFamily))
             {
-                updateNetworkInfo();
-               
-            }
-            catch (System.Management.ManagementException x)
-            {
-                if (x.ErrorCode != ManagementStatus.AccessDenied)
-                {
-                    exceptionhandler.HandleException("Network Information", x);
-                }
-            }
-            catch (Exception ex)
-            {
-                exceptionhandler.HandleException("Network Information", ex);
+                string ipAddrKey = String.Format("{0}/{1}/{2}/{3}", attrPath, deviceId, ipKind,index++);
+                XenStoreItem ipAddrItem = wmisession.GetXenStoreItem(ipAddrKey);
+                ipAddrItem.value = item.ToString();
             }
         }
-        void onVfChanged(object nothing, EventArrivedEventArgs args)
-        {
-            needsRefresh = true;
-        }
-
 
     }
 
