@@ -138,7 +138,6 @@ namespace xenwinsvc
         {
             this.exceptionhandler = exceptionhandler;
             updating = new Object();
-            needsRefresh = true;
 
             wmisession = WmiBase.Singleton.GetXenStoreSession(sessionName);
             this.devicePath = devicePath;
@@ -294,7 +293,7 @@ namespace xenwinsvc
             }
         }
         /// <summary>
-        /// Update the device info into into xenstore
+        /// Update the device info into xenstore
         /// </summary>
         /// <param name="device">The device key from xenstore, representing device from xenopsd, needs to be udpated</param>
         /// <param name="nic">the nic object representing a NIC inside VM</param>
@@ -320,7 +319,7 @@ namespace xenwinsvc
         /// <returns></returns>
         virtual protected NetworkInterface findValidNic(string mac, NetworkInterface[] nics)
         {
-            if(null == mac || nics == null)
+            if(null == mac ||  null == nics)
             {
                 Debug.Print("invalid parameter for findValidNic");
                 return null;
