@@ -38,6 +38,9 @@ using System.Diagnostics;
 using System.ServiceProcess;
 using Microsoft.Win32;
 using System.Linq;
+using xenguestlib.Util;
+using System.Text;
+
 
 namespace xenwinsvc
 {
@@ -100,6 +103,7 @@ namespace xenwinsvc
         protected void onVmNicAddrChange(Object sender, EventArgs e)
         {
             needsRefresh = true;
+            MibIFSingleton.Instance.setDirty();
         }
 
         /// <summary>
@@ -112,7 +116,7 @@ namespace xenwinsvc
         /// <summary>
         /// whether needs to refresh
         /// </summary>
-        static protected bool needsRefresh = false;
+        protected bool needsRefresh = false;
 
         /// <summary>
         /// The devicePath monitor all the network devices, must be override by the sub-class
@@ -190,7 +194,7 @@ namespace xenwinsvc
         /// Whether needs to refresh
         /// </summary>
         /// <returns>whether refresh is needed</returns>
-        virtual public bool NeedsRefresh()
+        public bool NeedsRefresh()
         {
              return needsRefresh;
         }
@@ -204,22 +208,98 @@ namespace xenwinsvc
         virtual protected bool macsMatch(string mac, NetworkInterface nic)
         {
             byte[] macbytes = nic.GetPhysicalAddress().GetAddressBytes();
-            if (macbytes.Length != 6) // Looks like an Ethernet mac address 
+           
+            string matchMacStr = null;
+
+            MIB_IF_TABLE2 mibTable = MibIFSingleton.Instance.getMIB2Interface();
+            MIB_IF_ROW2[] mibRows = (from mibIfRow in mibTable.Table where matchByteArray(macbytes, mibIfRow.PhysicalAddress) select mibIfRow).ToArray<MIB_IF_ROW2>();
+            try
             {
-                Debug.Print("Attempting to match non-ethernet physical address");
+                if (null == mibRows || 0 == mibRows.Length)
+                {
+                    Debug.Print("Does not find the permenent mac address, use soft-mac to match instead");
+                    if (macbytes.Length != 6) // Looks like an Ethernet mac address 
+                    {
+                        Debug.Print("Attempting to match non-ethernet physical address");
+                        return false;
+                    }
+                    matchMacStr = getMacStringFromByteArray(macbytes);
+                }
+                else
+                {
+                    byte[] matchBytes = mibRows[0].PermanentPhysicalAddress;
+                    if (mibRows[0].PhysicalAddressLength != 6)
+                    {
+                        Debug.Print("Attempting to match non-ethernet physical address");
+                        return false;
+                    }
+                    matchMacStr = getMacStringFromByteArray(matchBytes);
+                }
+
+                Debug.Print("Matching \"" + matchMacStr + "\" and \"" + mac.ToLower() + "\"");
+            }
+            catch (Exception e) 
+            {
+                Debug.Print("get exception: {0}",e);
                 return false;
             }
-            
-            string macmatchstr = macbytes[0].ToString("x2") + ":" +
-                                         macbytes[1].ToString("x2") + ":" +
-                                         macbytes[2].ToString("x2") + ":" +
-                                         macbytes[3].ToString("x2") + ":" +
-                                         macbytes[4].ToString("x2") + ":" +
-                                         macbytes[5].ToString("x2");
-            Debug.Print("Matching \"" + macmatchstr + "\" and \"" + mac.ToLower() + "\"");
 
-            return (macmatchstr.Equals(mac.ToLower()));
+            return (matchMacStr.Equals(mac.ToLower()));
+        }
 
+        /// <summary>
+        /// Get the mac address string from the byte array 
+        /// </summary>
+        /// <param name="macArr">mac address byte array, should at least 6 bytes</param>
+        /// <returns>mac address string</returns>
+        protected string getMacStringFromByteArray(byte[] macArr) 
+        {
+            if(null == macArr || 6 > macArr.Length) 
+            {
+                throw new Exception("Invalid mac address format");
+            }
+            string macString = string.Format("{0:X2}:{1:X2}:{2:X2}:{3:X2}:{4:X2}:{5:X2}", macArr[0], macArr[1], macArr[2], macArr[3], macArr[4], macArr[5]);
+            return macString.ToLower();
+        }
+
+        /// <summary>
+        ///  Compare two byte array.
+        ///     compare stop length is reached, or end is reached
+        /// </summary>
+        /// <param name="arr1">first byte array </param>
+        /// <param name="arr2">second byte array</param>
+        /// <param name="length">length want to compare</param>
+        /// <returns></returns>
+        bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
+        {
+            int sym1 = arr1.Length - length;
+            int sym2 = arr2.Length - length;
+            int comLength = length;
+
+            // At least one equal
+            if (sym1 * sym2 == 0)
+            {
+                if (sym1 < 0 || sym2 < 0) return false;
+            }
+            else if (sym1 * sym2 < 0) // Diff sides
+            {
+                return false;
+            }
+            else // Same side
+            {
+                if (sym1 < 0) // Both less length
+                {
+                    if (arr1.Length == arr2.Length) comLength = arr1.Length;
+                }
+            }  
+
+            int i = 0;
+            while (i < comLength) 
+            {
+                if (arr1[i] != arr2[i]) return false;
+                i++;
+            }
+            return true;
         }
         /// <summary>
         /// Get an IP address info of an NIC, for specific address family
@@ -1073,7 +1153,8 @@ namespace xenwinsvc
 
                 // Update mac
                 XenStoreItem xenMac = wmisession.GetXenStoreItem(macKey);
-                xenMac.value = nic.GetPhysicalAddress().ToString();
+                byte[] byteMac = nic.GetPhysicalAddress().GetAddressBytes();
+                xenMac.value = getMacStringFromByteArray(byteMac);
 
                 // Update ipv4 info
                 updateVFIpInfo(deviceId, System.Net.Sockets.AddressFamily.InterNetwork, nic);
