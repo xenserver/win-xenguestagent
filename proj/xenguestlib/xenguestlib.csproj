@@ -61,6 +61,7 @@
     <Compile Include="..\..\src\xenguestlib\Wmi.cs" />
     <Compile Include="..\..\src\xenguestlib\Branding.cs" />
     <Compile Include="..\..\src\xenguestlib\XenAppXenDesktop.cs" />
+    <Compile Include="Util.cs" />
     <Compile Include="XenAppSessionInfo.cs" />
   </ItemGroup>
   <ItemGroup>
