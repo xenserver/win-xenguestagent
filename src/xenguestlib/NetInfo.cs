@@ -38,7 +38,7 @@ using System.Diagnostics;
 using System.ServiceProcess;
 using Microsoft.Win32;
 using System.Linq;
-using xenguestlib.Util;
+using xenguestlib.MibUtil;
 using System.Text;
 
 
@@ -272,35 +272,26 @@ namespace xenwinsvc
         /// <returns></returns>
         bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
         {
-            int sym1 = arr1.Length - length;
-            int sym2 = arr2.Length - length;
-            int comLength = length;
-
-            // At least one equal
-            if (sym1 * sym2 == 0)
-            {
-                if (sym1 < 0 || sym2 < 0) return false;
-            }
-            else if (sym1 * sym2 < 0) // Diff sides
-            {
-                return false;
-            }
-            else // Same side
-            {
-                if (sym1 < 0) // Both less length
-                {
-                    if (arr1.Length == arr2.Length) comLength = arr1.Length;
-                }
-            }  
-
-            int i = 0;
-            while (i < comLength) 
-            {
-                if (arr1[i] != arr2[i]) return false;
-                i++;
-            }
-            return true;
+            formatArray(ref arr1, length);
+            formatArray(ref arr2, length);
+            return arr1.SequenceEqual(arr2);
         }
+
+        /// <summary>
+        /// Format the array, if the array longer than parameter length, then slice it
+        /// </summary>
+        /// <param name="arr">array to be format</param>
+        /// <param name="length">the formated length</param>
+        void formatArray(ref byte[] arr, int length) 
+        {
+            if (arr.Length > length) 
+            {
+                Byte[] destArray = new byte[length];
+                Array.Copy(arr, 0, destArray, 0, length);
+                arr = destArray;
+            }
+        }
+
         /// <summary>
         /// Get an IP address info of an NIC, for specific address family
         /// </summary>
@@ -412,6 +403,7 @@ namespace xenwinsvc
             }
             else 
             {
+                Debug.Print("found nic for mac: {0}", mac);
                 return validNics[0];
             }
         }

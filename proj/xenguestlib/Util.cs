@@ -8,7 +8,7 @@ using System.Management;
 
 namespace xenguestlib
 {
-    namespace Util
+    namespace MibUtil
     {
        
         /// <summary>
@@ -54,20 +54,13 @@ namespace xenguestlib
 
             [DllImportAttribute("Iphlpapi.dll")]
             static extern int FreeMibTable(int Table);
-
-            [DllImportAttribute("kernel32.dll", EntryPoint = "RtlMoveMemory")]
-            static extern int RtlMoveMemory(ref int Destination, int Source, int Length);
-
-            [DllImportAttribute("kernel32.dll", EntryPoint = "RtlMoveMemory")]
-            static extern int RtlMoveMemory(ref long Destination, int Source, int Length);
-
-            [DllImportAttribute("kernel32.dll", EntryPoint = "RtlMoveMemory")]
-            static extern int RtlMoveMemory(int Destination, int Source, int Length);
-
-            [DllImportAttribute("kernel32.dll")]
-            static extern int SetHandleCount(byte[] Bytes);
-            
+            /// <summary>
+            /// Single instance
+            /// </summary>
             private static MibIFSingleton instance;
+            /// <summary>
+            /// Get single instance
+            /// </summary>
             private MibIFSingleton()
             {
                 mibTable2 = new MIB_IF_TABLE2();
@@ -123,7 +116,6 @@ namespace xenguestlib
                 lock (updateLock)
                 {
                     int pTable = 0;
-                    byte[] bin = null;
                     int ret = GetIfTable2(ref pTable);
                     if (ret != 0)
                     {
@@ -132,58 +124,65 @@ namespace xenguestlib
                     }
                     Debug.Print("Loading MIBtable2.....");
                     const int NUM_ENTRIES_LENGTH = 4;
-                    RtlMoveMemory(ref mibTable2.NumEntries, pTable, NUM_ENTRIES_LENGTH);
                     mibTable2.Table = new MIB_IF_ROW2[mibTable2.NumEntries];
                     const int TABLE_POINTER_SIZE = 4;
                     int Address = pTable + NUM_ENTRIES_LENGTH + TABLE_POINTER_SIZE;
                     for (int i = 0; i < mibTable2.NumEntries; i++)
                     {
                         int offset = 0;
+                        const int SINGLE_SIZE = 1;
+                        const int MAX_SIZE = 1024;
+                        long[] longBuf = new long[MAX_SIZE];
+                        byte[] byteBuf = new byte[MAX_SIZE];
+                        int[] intBuf = new int[MAX_SIZE];
+
                         int startAddr =  Address + (i) * MIB_TABLE_SIZE;
                         const int UUID_SIZE = 8;
                         // Set uuid
-                        RtlMoveMemory(ref mibTable2.Table[i].InterfaceLuid, startAddr, UUID_SIZE);
+                        Marshal.Copy((IntPtr)startAddr, longBuf, 0, SINGLE_SIZE);
+                        mibTable2.Table[i].InterfaceLuid = longBuf[0];
                         offset += UUID_SIZE;
 
                         // Set index
                         const int INDEX_SIZE = 4;
-                        RtlMoveMemory(ref mibTable2.Table[i].InterfaceIndex, startAddr + offset, INDEX_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr+offset), intBuf, 0, SINGLE_SIZE);
+                        mibTable2.Table[i].InterfaceIndex = intBuf[0];
                         offset += INDEX_SIZE;
 
                         // Set guid
                         const int GUID_SIZE = 16;
                         mibTable2.Table[i].GUID = new byte[GUID_SIZE];
-                        RtlMoveMemory(SetHandleCount(mibTable2.Table[i].GUID), startAddr + offset, GUID_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr + offset), mibTable2.Table[i].GUID, 0, GUID_SIZE);
                         offset += GUID_SIZE;
 
                         // Set alias
                         const int ALIAS_SIZE = 514;
-                        bin = new byte[ALIAS_SIZE];
-                        RtlMoveMemory(SetHandleCount(bin), startAddr + offset, ALIAS_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr + offset), byteBuf, 0, GUID_SIZE);
+                        mibTable2.Table[i].Alias = Encoding.Unicode.GetString(byteBuf);
                         offset += ALIAS_SIZE;
-                        mibTable2.Table[i].Alias = Encoding.Unicode.GetString(bin);
 
                         // Set desc
                         const int DESC_SIZE = 514;
-                        bin = new byte[DESC_SIZE];
-                        RtlMoveMemory(SetHandleCount(bin), startAddr + offset, DESC_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr + offset), byteBuf, 0, DESC_SIZE);
                         offset += DESC_SIZE;
-                        mibTable2.Table[i].Description = Encoding.Unicode.GetString(bin);
+                        mibTable2.Table[i].Description = Encoding.Unicode.GetString(byteBuf);
 
                         // Set physical address legnth
                         const int PHYSICAL_ADDR_LENGTH_SIZE = 4;
-                        RtlMoveMemory(ref mibTable2.Table[i].PhysicalAddressLength,startAddr + offset, PHYSICAL_ADDR_LENGTH_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr + offset), intBuf, 0, SINGLE_SIZE);
+                        mibTable2.Table[i].PhysicalAddressLength = intBuf[0];
                         offset += PHYSICAL_ADDR_LENGTH_SIZE;
 
                         // Set physical address
                         const int PHYSICAL_ADDR_SIZE = 32;
                         mibTable2.Table[i].PhysicalAddress = new byte[PHYSICAL_ADDR_SIZE];
-                        RtlMoveMemory(SetHandleCount(mibTable2.Table[i].PhysicalAddress), startAddr + offset, PHYSICAL_ADDR_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr + offset), mibTable2.Table[i].PhysicalAddress, 0, PHYSICAL_ADDR_SIZE);
+
                         offset += PHYSICAL_ADDR_SIZE;
 
                         // Set permanent physical address
                         mibTable2.Table[i].PermanentPhysicalAddress = new byte[PHYSICAL_ADDR_SIZE];
-                        RtlMoveMemory(SetHandleCount(mibTable2.Table[i].PermanentPhysicalAddress), startAddr+offset, PHYSICAL_ADDR_SIZE);
+                        Marshal.Copy((IntPtr)(startAddr + offset), mibTable2.Table[i].PermanentPhysicalAddress, 0, PHYSICAL_ADDR_SIZE);
                     }
                     FreeMibTable(pTable);
                     bDirty = false;
