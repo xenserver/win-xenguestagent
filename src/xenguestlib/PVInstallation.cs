@@ -41,46 +41,46 @@ namespace xenwinsvc
 {
     public class PVInstallation : Feature, IRefresh
     {
-        XenStoreItem osname;
-        XenStoreItem hostname;
-        XenStoreItem hostnamedns;
-        XenStoreItem domain;
+        AXenStoreItem osname;
+        AXenStoreItem hostname;
+        AXenStoreItem hostnamedns;
+        AXenStoreItem domain;
 
 
-        XenStoreItem osclass;
-        XenStoreItem osmajor;
-        XenStoreItem osminor;
-        XenStoreItem osbuild;
-        XenStoreItem osplatform;
-        XenStoreItem osspmajor;
-        XenStoreItem osspminor;
-        XenStoreItem ossuite;
-        XenStoreItem ostype;
-        XenStoreItem datadistro;
-        XenStoreItem datamajor;
-        XenStoreItem dataminor;
+        AXenStoreItem osclass;
+        AXenStoreItem osmajor;
+        AXenStoreItem osminor;
+        AXenStoreItem osbuild;
+        AXenStoreItem osplatform;
+        AXenStoreItem osspmajor;
+        AXenStoreItem osspminor;
+        AXenStoreItem ossuite;
+        AXenStoreItem ostype;
+        AXenStoreItem datadistro;
+        AXenStoreItem datamajor;
+        AXenStoreItem dataminor;
         const string attrwinnt = "windows NT";
         const string distwindows = "windows";
 
-        XenStoreItem osboottype;
-        XenStoreItem ossystem32;
-        XenStoreItem oshal;
-        XenStoreItem osbootoptions;
+        AXenStoreItem osboottype;
+        AXenStoreItem ossystem32;
+       // AXenStoreItem oshal;
+        AXenStoreItem osbootoptions;
 
-        XenStoreItem oslicense;
-        XenStoreItem osvirtualxp;
+        AXenStoreItem oslicense;
+        AXenStoreItem osvirtualxp;
 
 
 
-        XenStoreItem pvmajor;
-        XenStoreItem pvminor;
-        XenStoreItem pvmicro;
-        XenStoreItem pvbuild;
-        XenStoreItem pvinstalled;
-        XenStoreItem guestdotnetframework;
+        AXenStoreItem pvmajor;
+        AXenStoreItem pvminor;
+        AXenStoreItem pvmicro;
+        AXenStoreItem pvbuild;
+        AXenStoreItem pvinstalled;
+        AXenStoreItem guestdotnetframework;
 
-        XenStoreItem xdvdapresent;
-        XenStoreItem xdvdaproductinstalled;
+        AXenStoreItem xdvdapresent;
+        AXenStoreItem xdvdaproductinstalled;
 
         object pvinstalllock = new object();
         bool initialised = false;
@@ -440,7 +440,7 @@ namespace xenwinsvc
                     string id = (string)mo["HotFixID"];
                     if (!id.Equals("File 1"))
                     {
-                        XenStoreItem hotfix = wmisession.GetXenStoreItem("attr/os/hotfixes/" + index.ToString());
+                        AXenStoreItem hotfix = wmisession.GetXenStoreItem("attr/os/hotfixes/" + index.ToString());
                         hotfix.value = id;
                         if (hotfix.GetStatus() == ManagementStatus.AccessDenied) {
                             enablehotfixinfo = false;

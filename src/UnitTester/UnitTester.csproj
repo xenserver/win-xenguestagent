@@ -42,6 +42,7 @@
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
+    <Reference Include="System.Management" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -58,11 +59,17 @@
   <ItemGroup>
     <Compile Include="AutoUpdateTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UTCommonStructrue.cs" />
+    <Compile Include="VifInfoTester.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\proj\xenguestlib\xenguestlib.csproj">
+      <Project>{c628d716-5062-4a5c-904e-4abebab262e0}</Project>
+      <Name>xenguestlib</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\proj\xenupdater\xenupdater.csproj">
       <Project>{83e81650-05ab-404b-8042-a2a6faab2bcd}</Project>
       <Name>xenupdater</Name>
