@@ -165,10 +165,10 @@ namespace xenwinsvc
             threadlock = new object();
         }
 
-        XenStoreItem actionKey;
-        XenStoreItem typeKey;
-        XenStoreItem statusKey;
-        XenStoreItem featureKey;
+        AXenStoreItem actionKey;
+        AXenStoreItem typeKey;
+        AXenStoreItem statusKey;
+        AXenStoreItem featureKey;
 
         private delegate StringBuilder CharallocCallback(int size);
         
@@ -265,11 +265,11 @@ namespace xenwinsvc
                     else if (type == VssSnapshot.Type.VOLUME)
                     {
                         string rootkeyname = "/vss/" + vm + "/vdisnap";
-                        XenStoreItem vdisnap = wmisession.GetXenStoreItem(rootkeyname);
+                        AXenStoreItem vdisnap = wmisession.GetXenStoreItem(rootkeyname);
                         foreach (string entryKey in vdisnap.children)
                         {
-                            XenStoreItem src = wmisession.GetXenStoreItem(entryKey);
-                            XenStoreItem dest = wmisession.GetXenStoreItem("control/snapshot/vdi/" + entryKey.Substring(rootkeyname.Length + 1));
+                            AXenStoreItem src = wmisession.GetXenStoreItem(entryKey);
+                            AXenStoreItem dest = wmisession.GetXenStoreItem("control/snapshot/vdi/" + entryKey.Substring(rootkeyname.Length + 1));
                             src.value = dest.value;
                         }
                         string snaptype = wmisession.GetXenStoreItem("/vss/" + vm + "/snaptype").value;
