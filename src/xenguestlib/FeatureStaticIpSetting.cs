@@ -189,16 +189,16 @@ namespace xenwinsvc
     }
     public class FeatureStaticIpSetting : Feature
     {
-        XenStoreItem ipenabled;
-        XenStoreItem ipv6enabled;
-        XenStoreItem mac;
-        XenStoreItem address;
-        XenStoreItem gateway;
-        XenStoreItem address6;
-        XenStoreItem gateway6;
-        XenStoreItem errorCode;
-        XenStoreItem errorMsg;
-        XenStoreItem staticIpSetting;
+        AXenStoreItem ipenabled;
+        AXenStoreItem ipv6enabled;
+        AXenStoreItem mac;
+        AXenStoreItem address;
+        AXenStoreItem gateway;
+        AXenStoreItem address6;
+        AXenStoreItem gateway6;
+        AXenStoreItem errorCode;
+        AXenStoreItem errorMsg;
+        AXenStoreItem staticIpSetting;
 
         public FeatureStaticIpSetting(IExceptionHandler exceptionhandler)
             : base("StaticIpSetting", "control/feature-static-ip-setting", "xenserver/device/vif", false, exceptionhandler)

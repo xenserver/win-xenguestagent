@@ -60,14 +60,15 @@ namespace xenwinsvc
         /// <summary>
         /// The wmi session object, all sub-class needs to initialize this object
         /// </summary>
-        protected WmiSession wmisession;
+        protected AWmiSession wmisession;
 
         /// <summary>
         /// update when catch new changes or refresh
         /// </summary>
         protected virtual void updateNicStatus()
         {
-            updateNetworkInfo();
+            NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
+            updateNetworkInfo(nics);
         }
 
         /// <summary>
@@ -109,7 +110,7 @@ namespace xenwinsvc
         /// <summary>
         /// Xenstore item for the static ip setting
         /// </summary>
-        XenStoreItem netStaticIpSetting;
+        AXenStoreItem netStaticIpSetting;
 
         protected IExceptionHandler exceptionhandler;
 
@@ -127,7 +128,7 @@ namespace xenwinsvc
         /// <summary>
         /// The xenstore Item corresponding to devicePath and attrPath
         /// </summary>
-        protected XenStoreItem netDeviceItem,netAttrItem;
+        protected AXenStoreItem netDeviceItem, netAttrItem;
 
         NetworkAddressChangedEventHandler addrChangeHandler;
 
@@ -135,15 +136,29 @@ namespace xenwinsvc
         /// Constructor of the NetInfo class
         /// </summary>
         /// <param name="exceptionhandler">The exception handler, trigger when exception occurs</param>
-        /// <param name="DEVICE_PATH"> xenstore device path of NIC device</param>
-        /// <param name="ATTR_PATH"> xenstore path NIC device data info report back to</param>
-        /// <param name="SESSION_NAME"> wmi session name for NIC device</param>
-        public NetInfo(IExceptionHandler exceptionhandler,string devicePath,string attrPath, string sessionName)
+        /// <param name="devicePath"> xenstore device path of NIC device</param>
+        /// <param name="attrPath"> xenstore path NIC device data info report back to</param>
+        /// <param name="sessionName"> wmi session name for NIC device</param>
+        public NetInfo(IExceptionHandler exceptionhandler, string devicePath, string attrPath, string sessionName)
+            : this(exceptionhandler, devicePath, attrPath, WmiBase.Singleton.GetXenStoreSession(sessionName))
         {
+           
+        }
+
+
+        /// <summary>
+        /// Constructor of the NetInfo class
+        /// </summary>
+        /// <param name="exceptionhandler">The exception handler, trigger when exception occurs</param>
+        /// <param name="devicePath"> xenstore device path of NIC device</param>
+        /// <param name="attrPath"> xenstore path NIC device data info report back to</param>
+        /// <param name="session"> wmi session, mainly used to access xenstore</param>
+        public NetInfo(IExceptionHandler exceptionhandler, string devicePath, string attrPath, AWmiSession session)
+        {
+            wmisession = session;
             this.exceptionhandler = exceptionhandler;
             updating = new Object();
 
-            wmisession = WmiBase.Singleton.GetXenStoreSession(sessionName);
             this.devicePath = devicePath;
             this.attrPath = attrPath;
 
@@ -252,7 +267,7 @@ namespace xenwinsvc
         /// </summary>
         /// <param name="macArr">mac address byte array, should at least 6 bytes</param>
         /// <returns>mac address string</returns>
-        protected string getMacStringFromByteArray(byte[] macArr) 
+        public string getMacStringFromByteArray(byte[] macArr) 
         {
             if(null == macArr || 6 > macArr.Length) 
             {
@@ -270,7 +285,7 @@ namespace xenwinsvc
         /// <param name="arr2">second byte array</param>
         /// <param name="length">length want to compare</param>
         /// <returns></returns>
-        bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
+        public bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
         {
             formatArray(ref arr1, length);
             formatArray(ref arr2, length);
@@ -298,7 +313,7 @@ namespace xenwinsvc
         /// <param name="nic">the nic object representing a NIC inside VM</param>
         /// <param name="addressFamily">ipv4 or ipv6</param>
         /// <returns></returns>
-        virtual protected IEnumerable<IPAddress> getAddrInfo(NetworkInterface nic, System.Net.Sockets.AddressFamily addressFamily)
+        virtual public IEnumerable<IPAddress> getAddrInfo(NetworkInterface nic, System.Net.Sockets.AddressFamily addressFamily)
         {
 
             if (nic.Supports(NetworkInterfaceComponent.IPv6) || nic.Supports(NetworkInterfaceComponent.IPv4))
@@ -341,7 +356,7 @@ namespace xenwinsvc
         {
             foreach (var device in devices)
             {
-                XenStoreItem macItem = wmisession.GetXenStoreItem(device + "/mac");
+                AXenStoreItem macItem = wmisession.GetXenStoreItem(device + "/mac");
                 if (!macItem.Exists() || "".Equals(macItem.value))
                 {
                     Debug.Print("Warning: xenstored should provide mac address for this vf device");
@@ -388,7 +403,7 @@ namespace xenwinsvc
         /// <param name="mac">mac string to identify the nic</param>
         /// <param name="nics">all the nic objects inside the VM</param>
         /// <returns></returns>
-        virtual protected NetworkInterface findValidNic(string mac, NetworkInterface[] nics)
+        virtual public NetworkInterface findValidNic(string mac, NetworkInterface[] nics)
         {
             if(null == mac ||  null == nics)
             {
@@ -410,14 +425,13 @@ namespace xenwinsvc
         /// <summary>
         /// Update xenstore related Netork info
         /// </summary>
-        private void updateNetworkInfo()
+        public void updateNetworkInfo(NetworkInterface[] nics)
         {
             lock (updating)
             {
                 needsRefresh = false;
                 removeNicAttr();
                 string[] devices;
-                NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
                 try
                 {
                     devices = netDeviceItem.children;
@@ -496,7 +510,7 @@ namespace xenwinsvc
     /// </summary>
     public class VifInfo : NetInfo {
 
-        XenStoreItem numvif;
+        AXenStoreItem numvif;
         const string DEVICE_PATH = "device/vif";
         const string ATTR_PATH  = "data/vif";
         const string SESSION_NAME = "Adapters";
@@ -534,7 +548,7 @@ namespace xenwinsvc
         {
          
             string namePath = string.Format("{0}/{1}/name", attrPath, getDeviceIndexFromIndexedDevicePath(device));
-            XenStoreItem name = wmisession.GetXenStoreItem(namePath);
+            AXenStoreItem name = wmisession.GetXenStoreItem(namePath);
             name.value = nic.Name;
             if (name.GetStatus() != ManagementStatus.NoError)
             {
@@ -1124,6 +1138,11 @@ namespace xenwinsvc
            
         }
 
+        public VfInfo(IExceptionHandler exceptionhandler, AWmiSession session)
+            : base(exceptionhandler, DEVICE_PATH,ATTR_PATH,session)
+        {
+        }
+
         /// <summary>
         /// Override method to customize how to report the NIC data
         /// </summary>
@@ -1140,11 +1159,11 @@ namespace xenwinsvc
             try
             {
                 // Update name
-                XenStoreItem xenName = wmisession.GetXenStoreItem(nameKey);
+                AXenStoreItem xenName = wmisession.GetXenStoreItem(nameKey);
                 xenName.value = nic.Name;
 
                 // Update mac
-                XenStoreItem xenMac = wmisession.GetXenStoreItem(macKey);
+                AXenStoreItem xenMac = wmisession.GetXenStoreItem(macKey);
                 byte[] byteMac = nic.GetPhysicalAddress().GetAddressBytes();
                 xenMac.value = getMacStringFromByteArray(byteMac);
 
@@ -1178,7 +1197,7 @@ namespace xenwinsvc
             foreach (var item in getAddrInfo(nic, addressFamily))
             {
                 string ipAddrKey = String.Format("{0}/{1}/{2}/{3}", attrPath, deviceId, ipKind,index++);
-                XenStoreItem ipAddrItem = wmisession.GetXenStoreItem(ipAddrKey);
+                AXenStoreItem ipAddrItem = wmisession.GetXenStoreItem(ipAddrKey);
                 ipAddrItem.value = item.ToString();
             }
         }
