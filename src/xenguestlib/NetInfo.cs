@@ -267,7 +267,7 @@ namespace xenwinsvc
         /// </summary>
         /// <param name="macArr">mac address byte array, should at least 6 bytes</param>
         /// <returns>mac address string</returns>
-        public string getMacStringFromByteArray(byte[] macArr) 
+        protected string getMacStringFromByteArray(byte[] macArr) 
         {
             if(null == macArr || 6 > macArr.Length) 
             {
@@ -285,7 +285,7 @@ namespace xenwinsvc
         /// <param name="arr2">second byte array</param>
         /// <param name="length">length want to compare</param>
         /// <returns></returns>
-        public bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
+        protected bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
         {
             formatArray(ref arr1, length);
             formatArray(ref arr2, length);
@@ -389,7 +389,7 @@ namespace xenwinsvc
         /// </summary>
         /// <param name="indexedDevicePath">like: ~xenserver/device/net-sriov-vf/2</param>
         /// <returns></returns>
-        public string getDeviceIndexFromIndexedDevicePath(string indexedDevicePath)
+        protected string getDeviceIndexFromIndexedDevicePath(string indexedDevicePath)
         {
             if (!indexedDevicePath.Contains(devicePath) || indexedDevicePath.Length <= devicePath.Length) 
             {
@@ -403,7 +403,7 @@ namespace xenwinsvc
         /// <param name="mac">mac string to identify the nic</param>
         /// <param name="nics">all the nic objects inside the VM</param>
         /// <returns></returns>
-        virtual public NetworkInterface findValidNic(string mac, NetworkInterface[] nics)
+        virtual protected NetworkInterface findValidNic(string mac, NetworkInterface[] nics)
         {
             if(null == mac ||  null == nics)
             {
@@ -425,7 +425,7 @@ namespace xenwinsvc
         /// <summary>
         /// Update xenstore related Netork info
         /// </summary>
-        public void updateNetworkInfo(NetworkInterface[] nics)
+        protected void updateNetworkInfo(NetworkInterface[] nics)
         {
             lock (updating)
             {

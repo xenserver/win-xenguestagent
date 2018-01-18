@@ -345,6 +345,68 @@ namespace XenWinSvcTester
         }
     }
     /// <summary>
+    /// Mock VfInfo class to expose some encalpuslated functions
+    /// </summary>
+    public class MockVifInfo : VfInfo
+    {
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="exceptionhandler">refer to the wrapped function</param>
+        /// <param name="session">refer to the wrapped function</param>
+        public MockVifInfo(IExceptionHandler exceptionhandler, AWmiSession session)
+            : base(exceptionhandler,session)
+        {
+        }
+        /// <summary>
+        /// Expose the matchByteArray function
+        /// </summary>
+        /// <param name="arr1">refer to the wrapped function</param>
+        /// <param name="arr2">refer to the wrapped function</param>
+        /// <param name="length">refer to the wrapped function</param>
+        /// <returns></returns>
+        public bool accessMatchByteArray(byte[] arr1, byte[] arr2, int length=6)
+        {
+            return base.matchByteArray(arr1, arr2, length);
+        }
+        /// <summary>
+        /// Expose the getMacStringFromByteArray function
+        /// </summary>
+        /// <param name="macArr">refer to the wrapped function</param>
+        /// <returns>refer to the wrapped function</returns>
+        public string accessGetMacStringFromByteArray(byte[] macArr)
+        {
+            return base.getMacStringFromByteArray(macArr);
+        }
+        /// <summary>
+        /// Expose the getDeviceIndexFromIndexedDevicePath function
+        /// </summary>
+        /// <param name="indexedDevicePath">refer to the wrapped function</param>
+        /// <returns>refer to the wrapped function</returns>
+        public string accessGetDeviceIndexFromIndexedDevicePath(string indexedDevicePath) 
+        {
+            return base.getDeviceIndexFromIndexedDevicePath(indexedDevicePath);
+        }
+        /// <summary>
+        /// Expose the findValidNic function
+        /// </summary>
+        /// <param name="mac">refer to the wrapped function</param>
+        /// <param name="nics">refer to the wrapped function</param>
+        /// <returns>refer to the wrapped function</returns>
+        public NetworkInterface accessFindValidNic(string mac, NetworkInterface[] nics) 
+        {
+            return base.findValidNic(mac, nics);
+        }
+        /// <summary>
+        /// Expose the updateNetworkInfo function
+        /// </summary>
+        /// <param name="nics">refer to the wrapped function</param>
+        public void accessUpdateNetworkInfo(NetworkInterface[] nics) 
+        {
+             base.updateNetworkInfo(nics);
+        }
+    }
+    /// <summary>
     /// Tester for VifInfo
     /// </summary>
     [TestClass]
@@ -357,7 +419,7 @@ namespace XenWinSvcTester
         /// <summary>
         /// VfInfo object to be tested
         /// </summary>
-        VfInfo vf = null;
+        MockVifInfo vf = null;
         /// <summary>
         /// Fake NICs 
         /// </summary>
@@ -415,7 +477,7 @@ namespace XenWinSvcTester
             session.GetXenStoreItem("xenserver/device/net-sriov-vf/1/mac", getMacString(mac1));
             session.GetXenStoreItem("xenserver/device/net-sriov-vf/2", "");
             session.GetXenStoreItem("xenserver/device/net-sriov-vf/2/mac", getMacString(mac2));
-            vf = new VfInfo(null, session);
+            vf = new MockVifInfo(null, session);
 
             // Construct mock Nics info
             nics = new MockNetworkInterface[2];
@@ -480,15 +542,15 @@ namespace XenWinSvcTester
         {
 
             byte[] arr2 = new byte[] { 0x32, 0x70, 0xd5, 0xa0, 0x5a, 0x21 };
-            bool result = vf.matchByteArray(mac1, arr2);
+            bool result = vf.accessMatchByteArray(mac1, arr2);
             Assert.IsTrue(result);
 
             arr2 = new byte[] { 0x32, 0x70, 0xd5, 0xa0, 0x5a, 0x21, 0xff };
-            result = vf.matchByteArray(mac1, arr2);
+            result = vf.accessMatchByteArray(mac1, arr2);
             Assert.IsTrue(result);
 
             arr2 = new byte[] { 0x32, 0x70, 0xd5, 0xa0, 0x5a, 0x22 };
-            result = vf.matchByteArray(mac1, arr2);
+            result = vf.accessMatchByteArray(mac1, arr2);
             Assert.IsFalse(result);
         }
         /// <summary>
@@ -499,7 +561,7 @@ namespace XenWinSvcTester
         public void TestGetMacStringFromByteArray() 
         {
             string expectedResult = getMacString(mac1);
-            string result = vf.getMacStringFromByteArray(mac1);
+            string result = vf.accessGetMacStringFromByteArray(mac1);
             Assert.AreEqual(expectedResult, result);
         }
         /// <summary>
@@ -510,7 +572,7 @@ namespace XenWinSvcTester
         {
             string path = "xenserver/device/net-sriov-vf/2";
             string expectedDeviceId = "2";
-            string deviceId = vf.getDeviceIndexFromIndexedDevicePath(path);
+            string deviceId = vf.accessGetDeviceIndexFromIndexedDevicePath(path);
             Assert.AreEqual(expectedDeviceId, expectedDeviceId);
         }
         /// <summary>
@@ -547,11 +609,11 @@ namespace XenWinSvcTester
         public void TestFindValidNic() 
         {
             string macStr = getMacString(mac1); ;
-            NetworkInterface nic = vf.findValidNic(macStr, nics);
+            NetworkInterface nic = vf.accessFindValidNic(macStr, nics);
             Assert.IsNotNull(nic);
 
             macStr = "06:49:df:d0:bb:5b";
-            nic = vf.findValidNic(macStr, nics);
+            nic = vf.accessFindValidNic(macStr, nics);
             Assert.IsNull(nic);
 
         }
@@ -563,7 +625,7 @@ namespace XenWinSvcTester
         [TestMethod]
         public void TestUpdateNetworkInfo()
         {
-            vf.updateNetworkInfo(nics);
+            vf.accessUpdateNetworkInfo(nics);
 
             // Check Nic1 xenstore Nic info
             // Check Name
