@@ -58,7 +58,9 @@
   </Choose>
   <ItemGroup>
     <Compile Include="AutoUpdateTests.cs" />
+    <Compile Include="UTHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UtilTester.cs" />
     <Compile Include="UTCommonStructrue.cs" />
     <Compile Include="VifInfoTester.cs" />
   </ItemGroup>

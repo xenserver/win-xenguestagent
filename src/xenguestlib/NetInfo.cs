@@ -40,6 +40,7 @@ using Microsoft.Win32;
 using System.Linq;
 using xenguestlib.MibUtil;
 using System.Text;
+using xenguestlib.NicUtil;
 
 
 namespace xenwinsvc
@@ -214,98 +215,11 @@ namespace xenwinsvc
              return needsRefresh;
         }
 
-        /// <summary>
-        /// whether a nic macth with the providen mac address
-        /// </summary>
-        /// <param name="mac">mac address to be match</param>
-        /// <param name="nic">the nic object representing a NIC inside VM</param>
-        /// <returns></returns>
-        virtual protected bool macsMatch(string mac, NetworkInterface nic)
-        {
-            byte[] macbytes = nic.GetPhysicalAddress().GetAddressBytes();
-           
-            string matchMacStr = null;
+       
 
-            MIB_IF_TABLE2 mibTable = MibIFSingleton.Instance.getMIB2Interface();
-            MIB_IF_ROW2[] mibRows = (from mibIfRow in mibTable.Table where matchByteArray(macbytes, mibIfRow.PhysicalAddress) select mibIfRow).ToArray<MIB_IF_ROW2>();
-            try
-            {
-                if (null == mibRows || 0 == mibRows.Length)
-                {
-                    Debug.Print("Does not find the permenent mac address, use soft-mac to match instead");
-                    if (macbytes.Length != 6) // Looks like an Ethernet mac address 
-                    {
-                        Debug.Print("Attempting to match non-ethernet physical address");
-                        return false;
-                    }
-                    matchMacStr = getMacStringFromByteArray(macbytes);
-                }
-                else
-                {
-                    byte[] matchBytes = mibRows[0].PermanentPhysicalAddress;
-                    if (mibRows[0].PhysicalAddressLength != 6)
-                    {
-                        Debug.Print("Attempting to match non-ethernet physical address");
-                        return false;
-                    }
-                    matchMacStr = getMacStringFromByteArray(matchBytes);
-                }
+       
 
-                Debug.Print("Matching \"" + matchMacStr + "\" and \"" + mac.ToLower() + "\"");
-            }
-            catch (Exception e) 
-            {
-                Debug.Print("get exception: {0}",e);
-                return false;
-            }
-
-            return (matchMacStr.Equals(mac.ToLower()));
-        }
-
-        /// <summary>
-        /// Get the mac address string from the byte array 
-        /// </summary>
-        /// <param name="macArr">mac address byte array, should at least 6 bytes</param>
-        /// <returns>mac address string</returns>
-        protected string getMacStringFromByteArray(byte[] macArr) 
-        {
-            if(null == macArr || 6 > macArr.Length) 
-            {
-                throw new Exception("Invalid mac address format");
-            }
-            string macString = string.Format("{0:X2}:{1:X2}:{2:X2}:{3:X2}:{4:X2}:{5:X2}", macArr[0], macArr[1], macArr[2], macArr[3], macArr[4], macArr[5]);
-            return macString.ToLower();
-        }
-
-        /// <summary>
-        ///  Compare two byte array.
-        ///     compare stop length is reached, or end is reached
-        /// </summary>
-        /// <param name="arr1">first byte array </param>
-        /// <param name="arr2">second byte array</param>
-        /// <param name="length">length want to compare</param>
-        /// <returns></returns>
-        protected bool matchByteArray(byte[] arr1, byte[] arr2, int length=6) 
-        {
-            formatArray(ref arr1, length);
-            formatArray(ref arr2, length);
-            return arr1.SequenceEqual(arr2);
-        }
-
-        /// <summary>
-        /// Format the array, if the array longer than parameter length, then slice it
-        /// </summary>
-        /// <param name="arr">array to be format</param>
-        /// <param name="length">the formated length</param>
-        void formatArray(ref byte[] arr, int length) 
-        {
-            if (arr.Length > length) 
-            {
-                Byte[] destArray = new byte[length];
-                Array.Copy(arr, 0, destArray, 0, length);
-                arr = destArray;
-            }
-        }
+       
 
         /// <summary>
         /// Get an IP address info of an NIC, for specific address family
@@ -410,7 +324,7 @@ namespace xenwinsvc
                 Debug.Print("invalid parameter for findValidNic");
                 return null;
             }
-            NetworkInterface[] validNics = (from nic in nics where macsMatch(mac, nic) select nic).ToArray<NetworkInterface>();
+            NetworkInterface[] validNics = (from nic in nics where NicUtil.macsMatch(mac, nic) select nic).ToArray<NetworkInterface>();
             if (null == validNics || 0 == validNics.Length)
             {
                 Debug.Print("does not find valid nic for mac: " + mac);
@@ -1165,7 +1079,7 @@ namespace xenwinsvc
                 // Update mac
                 AXenStoreItem xenMac = wmisession.GetXenStoreItem(macKey);
                 byte[] byteMac = nic.GetPhysicalAddress().GetAddressBytes();
-                xenMac.value = getMacStringFromByteArray(byteMac);
+                xenMac.value = NicUtil.getMacStringFromByteArray(byteMac);
 
                 // Update ipv4 info
                 updateVFIpInfo(deviceId, System.Net.Sockets.AddressFamily.InterNetwork, nic);

@@ -289,7 +289,8 @@ namespace xenwinsvc
                 }
                 new FeatureTerminalServicesReset(this);
                 new FeatureTerminalServices(this);
-                new FeatureStaticIpSetting(this);
+                new VifFeatureStaticIpSetting(this);
+                new VfFeatureStaticIpSetting(this);
                 wmisession.Log("About to add refreshers");
 
                 VifInfo vifRefresher = new VifInfo(this);
