@@ -38,6 +38,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using NetFwTypeLib;
+using xenguestlib.NicUtil;
 
 namespace xenwinsvc
 {
@@ -97,6 +98,7 @@ namespace xenwinsvc
         private static readonly string IP_INFO_REGISTRY_VALUE_NAME = "ipSettings";
         private static readonly string IP_INFO_COMPONENT_SEPARATOR = ","; // separate component of a ip configurations, like mac, ipv4/ipv6, etc
         private static readonly int IP_INFO_COMPONENT_NUMBER = 5; // the number of the ip info components, like mac, ipv4/6, etc
+        static object registerLock = new object();
   
         // Add new ip information and save into registry
         public static void addIpSeting(string mac, string DHCPEnable, string ipversion, string ip, string mask, string gateway)
@@ -153,8 +155,12 @@ namespace xenwinsvc
         public static void load()
         {
             
-            string[] strIpInfoArray = (string[]) Registry.GetValue(IP_INFO_REGISTRY_KEY_PATH,IP_INFO_REGISTRY_VALUE_NAME,null);
-
+            string[] strIpInfoArray = null;
+            lock (registerLock)
+            {
+                strIpInfoArray = (string[])Registry.GetValue(IP_INFO_REGISTRY_KEY_PATH, IP_INFO_REGISTRY_VALUE_NAME, null);
+            }
+           
             if(null ==  strIpInfoArray ) return; // The registry key  or the registry name does not exist. 
 
             foreach (var item  in strIpInfoArray)
@@ -181,13 +187,18 @@ namespace xenwinsvc
                 ipInfoRegistryValue = ipInfoRegistryValue + setting.MAC + IP_INFO_COMPONENT_SEPARATOR  + setting.IPVERSION + IP_INFO_COMPONENT_SEPARATOR + setting.DHCPENABLE + IP_INFO_COMPONENT_SEPARATOR + setting.IP + IP_INFO_COMPONENT_SEPARATOR + setting.MASK + IP_INFO_COMPONENT_SEPARATOR + setting.GATEWAY;
                 strIpList.Add(ipInfoRegistryValue);
             }
-      
-            Registry.SetValue(IP_INFO_REGISTRY_KEY_PATH,IP_INFO_REGISTRY_VALUE_NAME,strIpList.ToArray());
-        
+            lock (registerLock)
+            {
+                Registry.SetValue(IP_INFO_REGISTRY_KEY_PATH, IP_INFO_REGISTRY_VALUE_NAME, strIpList.ToArray());
+            }
+           
         }
 
     }
-    public class FeatureStaticIpSetting : Feature
+    /// <summary>
+    /// Base class for static ip setting
+    /// </summary>
+    public abstract class FeatureStaticIpSetting : Feature
     {
         AXenStoreItem ipenabled;
         AXenStoreItem ipv6enabled;
@@ -199,20 +210,33 @@ namespace xenwinsvc
         AXenStoreItem errorCode;
         AXenStoreItem errorMsg;
         AXenStoreItem staticIpSetting;
-
-        public FeatureStaticIpSetting(IExceptionHandler exceptionhandler)
-            : base("StaticIpSetting", "control/feature-static-ip-setting", "xenserver/device/vif", false, exceptionhandler)
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="name">Name of the feature </param>
+        /// <param name="advertise">Advertise key to xapi</param>
+        /// <param name="controlKey">Watch the control key and perform feature when update</param>
+        /// <param name="controlmustexist"></param>
+        /// <param name="exceptionhandler"></param>
+        public FeatureStaticIpSetting( string name, string advertise,string controlKey, bool controlmustexist, IExceptionHandler exceptionhandler)
+            : base(name, advertise, controlKey,controlmustexist, exceptionhandler)
         {
             IpSettings.load();
-            staticIpSetting = wmisession.GetXenStoreItem("xenserver/device/vif");
+            staticIpSetting = wmisession.GetXenStoreItem(controlKey);
         }
-
+        /// <summary>
+        /// Reset error message
+        /// </summary>
         private void resetError()
         {
             errorCode.value = "0";
             errorMsg.value = "";
         }
-
+        /// <summary>
+        /// Ipv4 bits to mask
+        /// </summary>
+        /// <param name="bits">Bits to be parsed</param>
+        /// <returns></returns>
         private string ipv4BitsToMask(int bits)
         {
             uint tmpmask; string netmask;
@@ -302,11 +326,9 @@ namespace xenwinsvc
                     if (!(bool)nic["ipEnabled"])
                         continue;
 
-                    if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
-                        continue;
+                    if (!NicUtil.macsMatch(macaddr, nic["macAddress"].ToString())) continue;
 
                     FoundDevice = true;
-
                     IpSettings.addIpSeting(nic["macAddress"].ToString(), nic["DHCPEnabled"].ToString(), "IPV4", "", "", "");
 
                     try{
@@ -367,8 +389,7 @@ namespace xenwinsvc
                     if (!(bool)nic["ipEnabled"])
                         continue;
 
-                    if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
-                        continue;
+                    if (!NicUtil.macsMatch(macaddr, nic["macAddress"].ToString())) continue;
 
                     FoundDevice = true;
 
@@ -430,8 +451,7 @@ namespace xenwinsvc
                 if (!(bool)nic["ipEnabled"])
                     continue;
 
-                if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
-                    continue;
+                if (!NicUtil.macsMatch(macaddr, nic["macAddress"].ToString())) continue;
 
                 IpSettingItem settings = new IpSettingItem(nic["macAddress"].ToString(), "IPV4", "", "", "", "");
                 if (IpSettings.getIPseting(nic["macAddress"].ToString(), "IPV4", ref settings) == false)
@@ -463,8 +483,7 @@ namespace xenwinsvc
                 if (!(bool)nic["ipEnabled"])
                     continue;
 
-                if (nic["macAddress"].ToString().ToUpper() != macaddr.ToUpper())
-                    continue;
+                if (!NicUtil.macsMatch(macaddr, nic["macAddress"].ToString())) continue;
 
                 IpSettingItem settings = new IpSettingItem(nic["macAddress"].ToString(), "IPV6", "", "", "", "");
                 if (IpSettings.getIPseting(nic["macAddress"].ToString(), "IPV6", ref settings) == false)
@@ -493,20 +512,20 @@ namespace xenwinsvc
             {
                 try
                 {
-                    foreach (string vif in staticIpSetting.children)
+                    foreach (string nic in staticIpSetting.children)
                     {
-                        mac = wmisession.GetXenStoreItem(vif + "/static-ip-setting/mac");
-                        ipenabled   = wmisession.GetXenStoreItem(vif + "/static-ip-setting/enabled");
-                        ipv6enabled = wmisession.GetXenStoreItem(vif + "/static-ip-setting/enabled6");
-                        errorCode = wmisession.GetXenStoreItem(vif + "/static-ip-setting/error-code");
-                        errorMsg  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/error-msg");
+                        mac = wmisession.GetXenStoreItem(nic + "/static-ip-setting/mac");
+                        ipenabled   = wmisession.GetXenStoreItem(nic + "/static-ip-setting/enabled");
+                        ipv6enabled = wmisession.GetXenStoreItem(nic + "/static-ip-setting/enabled6");
+                        errorCode = wmisession.GetXenStoreItem(nic + "/static-ip-setting/error-code");
+                        errorMsg  = wmisession.GetXenStoreItem(nic + "/static-ip-setting/error-msg");
 
                         if (ipenabled.Exists() && ipenabled.value.Length != 0)
                         {
                             if (int.Parse(ipenabled.value) == 1) // assign static ip setting
                             {
-                                address  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address");
-                                gateway  = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway");
+                                address  = wmisession.GetXenStoreItem(nic + "/static-ip-setting/address");
+                                gateway  = wmisession.GetXenStoreItem(nic + "/static-ip-setting/gateway");
 
                                 SetStaticIpv4Setting();
 
@@ -525,8 +544,8 @@ namespace xenwinsvc
                         {
                             if (int.Parse(ipv6enabled.value) == 1) // assign static ipv6 setting
                             {
-                                address6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/address6");
-                                gateway6 = wmisession.GetXenStoreItem(vif + "/static-ip-setting/gateway6");
+                                address6 = wmisession.GetXenStoreItem(nic + "/static-ip-setting/address6");
+                                gateway6 = wmisession.GetXenStoreItem(nic + "/static-ip-setting/gateway6");
 
                                 SetStaticIpv6Setting();
 
@@ -544,6 +563,41 @@ namespace xenwinsvc
                 }
             catch { }; // Ignore failure, if node does not exist
             }
+        }
+    }
+    /// <summary>
+    /// Class to handle the staticIpSetting feature for plan pv nic
+    /// </summary>
+    public class VifFeatureStaticIpSetting : FeatureStaticIpSetting 
+    {
+        public VifFeatureStaticIpSetting(IExceptionHandler exceptionhandler)
+            :base("StaticIpSetting","control/feature-static-ip-setting","xenserver/device/vif",false,exceptionhandler)
+        {
+        }
+    }
+    /// <summary>
+    /// Class to  handle the staticIpSetting feature for sriov nic
+    /// </summary>
+    public class VfFeatureStaticIpSetting : FeatureStaticIpSetting 
+    {
+        private static string SESSION_NAME = "StaticIpSettingSriov";
+        /// <summary>
+        /// Same as StaticIpSetting feature
+        /// If any of VfFeatureStaticIpSetting and VifFeatureStaticIpSetting enabled, then the guest has the ability to set static ip
+        /// </summary>
+        private static string ADVERTISE_KEY = "control/feature-static-ip-setting";
+        /// <summary>
+        /// Control key to watch, on feature when the control key updated
+        /// </summary>
+        private static string CONTROL_KEY = "xenserver/device/net-sriov-vf";
+        private static bool CONTROL_KEY_MUST_EXIST = false;
+        /// <summary>
+        /// Constructor, customize the parent class constructor
+        /// </summary>
+        /// <param name="exceptionhandler">exception handler, refer parent class</param>
+        public VfFeatureStaticIpSetting(IExceptionHandler exceptionhandler)
+            : base(SESSION_NAME, ADVERTISE_KEY, CONTROL_KEY, CONTROL_KEY_MUST_EXIST, exceptionhandler)
+        {
         }
     }
 }

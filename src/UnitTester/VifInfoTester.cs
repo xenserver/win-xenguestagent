@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Linq;
 using System.Text;
+using UTHelper;
 
 namespace XenWinSvcTester
 {
@@ -358,26 +359,7 @@ namespace XenWinSvcTester
             : base(exceptionhandler,session)
         {
         }
-        /// <summary>
-        /// Expose the matchByteArray function
-        /// </summary>
-        /// <param name="arr1">refer to the wrapped function</param>
-        /// <param name="arr2">refer to the wrapped function</param>
-        /// <param name="length">refer to the wrapped function</param>
-        /// <returns></returns>
-        public bool accessMatchByteArray(byte[] arr1, byte[] arr2, int length=6)
-        {
-            return base.matchByteArray(arr1, arr2, length);
-        }
-        /// <summary>
-        /// Expose the getMacStringFromByteArray function
-        /// </summary>
-        /// <param name="macArr">refer to the wrapped function</param>
-        /// <returns>refer to the wrapped function</returns>
-        public string accessGetMacStringFromByteArray(byte[] macArr)
-        {
-            return base.getMacStringFromByteArray(macArr);
-        }
+   
         /// <summary>
         /// Expose the getDeviceIndexFromIndexedDevicePath function
         /// </summary>
@@ -430,15 +412,7 @@ namespace XenWinSvcTester
         byte[] ipv4BytesNic1, ipv4BytesNic2;
         byte[] ipv6BytesNic1, ipv6BytesNic2;
         byte[] mac1, mac2;
-        /// <summary>
-        /// Get mac string from the byte arrar, seperated by ":"
-        /// </summary>
-        /// <param name="macbyte">mac array in bytes</param>
-        /// <returns></returns>
-        private string getMacString(byte[] macbyte)
-        {
-            return string.Format("{0:x2}:{1:x2}:{2:x2}:{3:x2}:{4:x2}:{5:x2}", macbyte[0], macbyte[1], macbyte[2], macbyte[3], macbyte[4], macbyte[5]);
-        }
+       
         /// <summary>
         /// Get Ipv6 string from byte array
         /// </summary>
@@ -474,9 +448,9 @@ namespace XenWinSvcTester
             // Init mock session
             session.GetXenStoreItem("xenserver/device/net-sriov-vf", "");
             session.GetXenStoreItem("xenserver/device/net-sriov-vf/1", "");
-            session.GetXenStoreItem("xenserver/device/net-sriov-vf/1/mac", getMacString(mac1));
+            session.GetXenStoreItem("xenserver/device/net-sriov-vf/1/mac", UTFunctions.getMacString(mac1));
             session.GetXenStoreItem("xenserver/device/net-sriov-vf/2", "");
-            session.GetXenStoreItem("xenserver/device/net-sriov-vf/2/mac", getMacString(mac2));
+            session.GetXenStoreItem("xenserver/device/net-sriov-vf/2/mac", UTFunctions.getMacString(mac2));
             vf = new MockVifInfo(null, session);
 
             // Construct mock Nics info
@@ -531,39 +505,8 @@ namespace XenWinSvcTester
             nics[1].SetPhysicalAddress(physicalAddr);
 
         }
-        /// <summary>
-        /// Test the matchByteArray method
-        ///      1. same byte content should return true
-        ///      2. diff length, but same previous content should return true
-        ///      3. diff content should return false
-        /// </summary>
-        [TestMethod]
-        public void TestMatchByteArray()
-        {
-
-            byte[] arr2 = new byte[] { 0x32, 0x70, 0xd5, 0xa0, 0x5a, 0x21 };
-            bool result = vf.accessMatchByteArray(mac1, arr2);
-            Assert.IsTrue(result);
-
-            arr2 = new byte[] { 0x32, 0x70, 0xd5, 0xa0, 0x5a, 0x21, 0xff };
-            result = vf.accessMatchByteArray(mac1, arr2);
-            Assert.IsTrue(result);
-
-            arr2 = new byte[] { 0x32, 0x70, 0xd5, 0xa0, 0x5a, 0x22 };
-            result = vf.accessMatchByteArray(mac1, arr2);
-            Assert.IsFalse(result);
-        }
-        /// <summary>
-        /// Test the getMacStringFromByteArray method
-        ///      The returned mac string should be the same as expected
-        /// </summary>
-        [TestMethod]
-        public void TestGetMacStringFromByteArray() 
-        {
-            string expectedResult = getMacString(mac1);
-            string result = vf.accessGetMacStringFromByteArray(mac1);
-            Assert.AreEqual(expectedResult, result);
-        }
+       
+       
         /// <summary>
         /// Test the getDeviceIndexFromIndexedDevicePath method
         /// </summary>
@@ -608,7 +551,7 @@ namespace XenWinSvcTester
         [TestMethod]
         public void TestFindValidNic() 
         {
-            string macStr = getMacString(mac1); ;
+            string macStr = UTFunctions.getMacString(mac1); ;
             NetworkInterface nic = vf.accessFindValidNic(macStr, nics);
             Assert.IsNotNull(nic);
 
@@ -633,7 +576,7 @@ namespace XenWinSvcTester
             Assert.AreEqual("Ethernet UT1", name.value);
             // Check Mac
             MockXenStoreItem mac = session.GetXenStoreItem("xenserver/attr/net-sriov-vf/1/mac") as MockXenStoreItem;
-            Assert.AreEqual(getMacString(mac1), mac.value);
+            Assert.AreEqual(UTFunctions.getMacString(mac1), mac.value);
             // Check ipv4
             MockXenStoreItem ipv4 = session.GetXenStoreItem("xenserver/attr/net-sriov-vf/1/ipv4/0") as MockXenStoreItem;
             string ipv4Expect = string.Format("{0:d}.{1:d}.{2:d}.{3:d}", ipv4BytesNic1[0], ipv4BytesNic1[1], ipv4BytesNic1[2],ipv4BytesNic1[3]);
@@ -649,7 +592,7 @@ namespace XenWinSvcTester
             Assert.AreEqual("Ethernet UT2", name.value);
             // Check Mac
             mac = session.GetXenStoreItem("xenserver/attr/net-sriov-vf/2/mac") as MockXenStoreItem;
-            Assert.AreEqual(getMacString(mac2), mac.value);
+            Assert.AreEqual(UTFunctions.getMacString(mac2), mac.value);
             // Check ipv4
             ipv4 = session.GetXenStoreItem("xenserver/attr/net-sriov-vf/2/ipv4/0") as MockXenStoreItem;
             ipv4Expect = string.Format("{0:d}.{1:d}.{2:d}.{3:d}", ipv4BytesNic2[0], ipv4BytesNic2[1], ipv4BytesNic2[2], ipv4BytesNic2[3]);
