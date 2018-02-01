@@ -730,6 +730,7 @@ namespace xenwinsvc
                     {
                         // an exception during the commit means handled doesn't get set
                         // We want to loop around and try again
+                        Debug.Print(string.Format("HandleTransaction exception: {0}", e));
                         continue;
                     }
                 }

@@ -704,7 +704,7 @@ namespace xenwinsvc
             }
         }
 
-        public void AbortTransaction()
+        public override void AbortTransaction()
         {
             try 
             {
