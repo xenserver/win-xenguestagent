@@ -77,7 +77,7 @@ namespace xenwinsvc
         static List<Feature> features = new List<Feature>();
         protected WmiSession wmisession;
         string name;
-        protected XenStoreItem advert = null;
+        protected AXenStoreItem advert = null;
         protected bool enabled = false;
         public static void Advertise(WmiSession wmisession)
         {
@@ -106,7 +106,7 @@ namespace xenwinsvc
                 }
             }
         }
-        protected XenStoreItem controlKey=null;
+        protected AXenStoreItem controlKey=null;
         WmiWatchListener listener = null;
         IExceptionHandler exceptionhandler;
         bool controlmustexist = true;
@@ -282,10 +282,10 @@ namespace xenwinsvc
 
     public class FeatureSetComputerName : Feature
     {
-        XenStoreItem name;
-        XenStoreItem state;
-        XenStoreItem error;
-        XenStoreItem warn;
+        AXenStoreItem name;
+        AXenStoreItem state;
+        AXenStoreItem error;
+        AXenStoreItem warn;
 
         public FeatureSetComputerName(IExceptionHandler exceptionhandler)
             : base(Branding.Instance.getString("BRANDING_setComputerName"), "control/feature-setcomputername", "control/setcomputername/action", true, exceptionhandler)
@@ -310,7 +310,7 @@ namespace xenwinsvc
             catch {
                 try {
                     wmisession.Log("Setting computer name to default");
-                    XenStoreItem name = wmisession.GetXenStoreItem("name");
+                    AXenStoreItem name = wmisession.GetXenStoreItem("name");
                     defaultname = name.value;
                     
                 }
@@ -439,11 +439,11 @@ namespace xenwinsvc
 
     public class FeatureDomainJoin : Feature
     {
-        XenStoreItem domainName;
-        XenStoreItem userName;
-        XenStoreItem password;
-        XenStoreItem state;
-        XenStoreItem error;
+        AXenStoreItem domainName;
+        AXenStoreItem userName;
+        AXenStoreItem password;
+        AXenStoreItem state;
+        AXenStoreItem error;
 
         public FeatureDomainJoin(IExceptionHandler exceptionhandler)
             : base("Domain Join", "", "control/domainjoin/action", true, exceptionhandler)
@@ -555,7 +555,7 @@ namespace xenwinsvc
         }
     }
     public class FeatureTerminalServicesReset : Feature {
-        XenStoreItem datats;
+        AXenStoreItem datats;
         public FeatureTerminalServicesReset(IExceptionHandler exceptionhandler)
             : base("Terminal Services Reset", "control/feature-ts2", "data/ts", false, exceptionhandler)
         {
@@ -605,7 +605,7 @@ namespace xenwinsvc
 
     public class FeatureTerminalServices : Feature
     {
-        XenStoreItem datats;
+        AXenStoreItem datats;
         public FeatureTerminalServices(IExceptionHandler exceptionhandler)
             : base("Terminal Services", "control/feature-ts", "control/ts", true, exceptionhandler)
         {
@@ -667,11 +667,11 @@ namespace xenwinsvc
 
     public class FeatureXSBatchCommand : Feature
     {
-        XenStoreItem    state;
-        XenStoreItem    script;
-        XenStoreItem    ret;
-        XenStoreItem    stdout;
-        XenStoreItem    stderr;
+        AXenStoreItem    state;
+        AXenStoreItem    script;
+        AXenStoreItem    ret;
+        AXenStoreItem    stdout;
+        AXenStoreItem    stderr;
         int             returnCode;
         string          stdoutStr;
         string          stderrStr;
@@ -730,6 +730,7 @@ namespace xenwinsvc
                     {
                         // an exception during the commit means handled doesn't get set
                         // We want to loop around and try again
+                        Debug.Print(string.Format("HandleTransaction exception: {0}", e));
                         continue;
                     }
                 }

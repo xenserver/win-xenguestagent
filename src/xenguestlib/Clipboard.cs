@@ -58,8 +58,8 @@ namespace xenwinsvc
             string totalclipboard = "";
             string totalclientclipboard = null;
             WmiSession wmisession;
-            XenStoreItem xsSetClipboard;
-            XenStoreItem xsReportClipboard;
+            AXenStoreItem xsSetClipboard;
+            AXenStoreItem xsReportClipboard;
             WmiWatchListener serverwatch;
             WmiWatchListener clientwatch;
 

@@ -46,9 +46,9 @@ namespace xenwinsvc
         private static object syncRoot = new Object();
         private WmiSession wmisession;
         private object syncSingleton;
-        private XenStoreItem xsupdated;
-        private XenStoreItem xsupdatedcount;
-        private XenStoreItem xserror;
+        private AXenStoreItem xsupdated;
+        private AXenStoreItem xsupdatedcount;
+        private AXenStoreItem xserror;
         private int updatecounter = 0;
 
         private Queue<string> debugmsg;
@@ -447,7 +447,7 @@ namespace xenwinsvc
         }
     }
 
-    public class XenStoreItem
+    public class XenStoreItem:AXenStoreItem
     {
         WmiSession wmisession;
         protected string name;
@@ -462,7 +462,7 @@ namespace xenwinsvc
             this.name = name;
         }
 
-        public WmiWatchListener Watch(EventArrivedEventHandler handler)
+        public override WmiWatchListener Watch(EventArrivedEventHandler handler)
         {
             WqlEventQuery eq = new WqlEventQuery("CitrixXenStoreWatchEvent", String.Format("EventId=\"{0}\"", name));
             ManagementEventWatcher ev = new ManagementEventWatcher(WmiBase.Singleton.Scope, eq);
@@ -470,15 +470,10 @@ namespace xenwinsvc
             return new WmiWatchListener(wmisession, ev, name);
         }
 
-        ManagementStatus status = ManagementStatus.NoError;
-        public ManagementStatus GetStatus()
-        {
-            return status;
-        }
         bool readfail = false;
         bool writefail = false;
         bool childfail=false;
-        public virtual string value
+        override public  string value
         {
             get
             {
@@ -539,7 +534,7 @@ namespace xenwinsvc
 
             }
         }
-        public string[] children
+        override public string[] children
         {
             get
             {
@@ -572,7 +567,7 @@ namespace xenwinsvc
                 }
             }
         }
-        public virtual void Remove()
+        public override void Remove()
         {
             try
             {
@@ -601,7 +596,7 @@ namespace xenwinsvc
                 throw;
             }
         }
-        public bool Exists()
+        override public bool Exists()
         {
             try
             {
@@ -621,9 +616,35 @@ namespace xenwinsvc
         }
     }
 
+    public abstract class AXenStoreItem 
+    {
+        protected ManagementStatus status = ManagementStatus.NoError;
+        abstract public string[] children
+        {
+            get;
+        }
+        abstract public WmiWatchListener Watch(EventArrivedEventHandler handler);
+        abstract public string value
+        {
+            get;
+            set;
+        }
+        abstract public bool Exists();
+        abstract public void Remove();
+        public virtual ManagementStatus GetStatus()
+        {
+            return status;
+        }
+    }
+    public abstract class AWmiSession
+    {
+        abstract public AXenStoreItem GetXenStoreItem(string path);
+        abstract public void StartTransaction();
+        abstract public void AbortTransaction();
+        abstract public void CommitTransaction();
+    }
 
-
-    public class WmiSession : IDisposable
+    public class WmiSession : AWmiSession, IDisposable
     {
         private ManagementObject session = null;
         private WmiBase wmibase;
@@ -647,7 +668,7 @@ namespace xenwinsvc
             System.Threading.Monitor.Exit(session);
         }
 
-        public void StartTransaction()
+        public override void StartTransaction()
         {
             System.Threading.Monitor.Enter(session);
             try
@@ -671,7 +692,7 @@ namespace xenwinsvc
             }
         }
 
-        public void CommitTransaction()
+        public override void CommitTransaction()
         {
             try
             {
@@ -683,7 +704,7 @@ namespace xenwinsvc
             }
         }
 
-        public void AbortTransaction()
+        public override void AbortTransaction()
         {
             try 
             {
@@ -739,7 +760,7 @@ namespace xenwinsvc
             session = WmiBase.getFirst(objects.Get());
         }
 
-        public XenStoreItem GetXenStoreItem(string name)
+        public override AXenStoreItem GetXenStoreItem(string name)
         {
             /*if (!items.ContainsKey(name))
             {
